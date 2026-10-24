@@ -54,7 +54,7 @@ class LiveLane:
             inv = make_invoice(k, _seed_for(seg, k))
             inv.client_name, company = DEMO_CLIENTS[k]
             inv.company = company if inv.is_business else None
-            po = f"PO-{4400 + k}" if inv.is_business else None
+            po = f"PO-{4400 + k}" if inv.company else None
             created = self.pp.create_invoice(client_name=inv.client_name, email=email, amount=inv.amount,
                                              po_number=po, item=ITEMS[seg],
                                              note="Thanks for your business. Pay with PayPal from this invoice.")

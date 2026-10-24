@@ -49,12 +49,13 @@ def _chat(system: str, user: str, max_tokens: int = 400) -> str:
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
-            json={"model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), "max_tokens": max_tokens,
+            # Leave headroom: newer models may spend part of the budget on thinking.
+            json={"model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5"), "max_tokens": max_tokens + 1500,
                   "system": system, "messages": [{"role": "user", "content": user}]},
-            timeout=30,
+            timeout=60,
         )
         r.raise_for_status()
-        return "".join(b.get("text", "") for b in r.json()["content"])
+        return "".join(b.get("text", "") for b in r.json()["content"] if b.get("type") == "text")
     if p == "openai":
         r = httpx.post(
             "https://api.openai.com/v1/chat/completions",
@@ -78,7 +79,7 @@ def classify_reply(text: str) -> dict:
               "forgot = they overlooked it. cash_tight = they lack funds right now. other = anything else.")
     try:
         raw = _chat(system, text, max_tokens=50)
-        reason = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])["reason"]
+        reason = json.loads(raw[raw.find("{"): raw.rfind("}") + 1], strict=False)["reason"]
         if reason in REASONS:
             return {"reason": reason, "source": "llm"}
     except Exception:
@@ -133,7 +134,7 @@ def write_reminder(action: str, inv: dict) -> dict:
                        "client_last_reply": inv.get("last_reply")})
     try:
         raw = _chat(system, user)
-        out = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
+        out = json.loads(raw[raw.find("{"): raw.rfind("}") + 1], strict=False)
         return {"subject": out["subject"][:60], "note": out["note"][:600], "source": "llm"}
     except Exception:
         return {**_fallback_reminder(action, inv), "source": "fallback"}
