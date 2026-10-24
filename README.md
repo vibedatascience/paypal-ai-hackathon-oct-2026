@@ -2,7 +2,9 @@
 
 Smart Invoice Reminders learns which PayPal invoice reminder gets each client to pay, then proves it with a measured gain in days-to-paid.
 
-Most invoicing tools, and most LLM add-ons, send the same polite reminder on a fixed schedule. Clients do not pay late for the same reason. A corporate accounts payable team needs a PO number before its payment run. A startup founder forgot and will pay from a phone in one tap. A repeat late payer moves only when a late fee is mentioned. It treats each reminder as a decision, observes whether the client paid, and updates what it does next.
+Most invoicing tools, and most LLM add-ons, send the same polite reminder on a fixed schedule. Clients do not pay late for the same reason. A corporate accounts payable team needs a PO number before its payment run. A startup founder forgot and will pay from a phone in one tap. A repeat late payer moves only when a late fee is mentioned. This app treats each reminder as a decision, observes whether the client paid, and updates what it does next.
+
+**Live demo:** https://paypal-ai-invoice-reminders.onrender.com (free tier; the first load after idle takes about 50 seconds)
 
 ![screenshot](docs/screenshot.png)
 

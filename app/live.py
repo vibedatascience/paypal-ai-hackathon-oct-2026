@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -48,51 +49,63 @@ class LiveLane:
     def mode(self) -> str:
         return self.pp.mode
 
+    def _open(self, k: int, seg: str, email: str) -> dict:
+        inv = make_invoice(k, _seed_for(seg, k))
+        inv.client_name, company = DEMO_CLIENTS[k]
+        inv.company = company if inv.is_business else None
+        po = f"PO-{4400 + k}" if inv.company else None
+        created = self.pp.create_invoice(client_name=inv.client_name, email=email, amount=inv.amount,
+                                         po_number=po, item=ITEMS[seg],
+                                         note="Thanks for your business. Pay with PayPal from this invoice.")
+        iid = created.get("id") or created.get("href", "").rsplit("/", 1)[-1]
+        self.pp.send_invoice(iid)
+        status = self.pp.get_invoice(iid).get("status", "SENT")
+        return {"inv": inv, "paypal_id": iid, "po": po, "status": status,
+                "last_action": None, "subject": "", "note": "", "reason": "unknown"}
+
     def start(self) -> None:
         email = os.getenv("PAYPAL_RECIPIENT_EMAIL", "client@example.com")
-        for k, seg in enumerate(DEMO_SEGMENTS):
-            inv = make_invoice(k, _seed_for(seg, k))
-            inv.client_name, company = DEMO_CLIENTS[k]
-            inv.company = company if inv.is_business else None
-            po = f"PO-{4400 + k}" if inv.company else None
-            created = self.pp.create_invoice(client_name=inv.client_name, email=email, amount=inv.amount,
-                                             po_number=po, item=ITEMS[seg],
-                                             note="Thanks for your business. Pay with PayPal from this invoice.")
-            iid = created.get("id") or created.get("href", "").rsplit("/", 1)[-1]
-            self.pp.send_invoice(iid)
-            status = self.pp.get_invoice(iid).get("status", "SENT")
-            self.rows.append({"inv": inv, "paypal_id": iid, "po": po, "status": status,
-                              "last_action": None, "subject": "", "note": "", "reason": "unknown"})
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            self.rows = list(ex.map(lambda ks: self._open(ks[0], ks[1], email), enumerate(DEMO_SEGMENTS)))
 
     def _choose(self, x: np.ndarray) -> str:
         exp = self.model.expected(x)  # greedy on the posterior mean for a clear demo
         return max(ACTIONS, key=lambda a: exp[a]["mean"])
 
+    def _act(self, row: dict, a: str) -> tuple[dict, dict, str]:
+        """Network work for one invoice: LLM writes, PayPal sends, client responds, PayPal records."""
+        inv: Invoice = row["inv"]
+        msg = llm.write_reminder(a, {"client_name": inv.client_name, "company": inv.company,
+                                     "amount": inv.amount, "days_overdue": inv.days_overdue,
+                                     "po_number": row["po"], "billing_contact": "ap@client.example",
+                                     "last_reply": inv.last_reply})
+        if a != "wait":
+            self.pp.remind(row["paypal_id"], msg["subject"], msg["note"])
+        out = step(inv, a, lambda t: llm.classify_reply(t)["reason"])
+        if out["paid"]:
+            self.pp.record_payment(row["paypal_id"], inv.amount)
+        status = self.pp.get_invoice(row["paypal_id"]).get("status", row["status"])
+        return msg, out, status
+
     def step(self) -> None:
         self.epoch += 1
-        for row in self.rows:
+        todo = []
+        for row in self.rows:  # decisions first, from the current posterior
             inv: Invoice = row["inv"]
-            if inv.closed:
-                continue
-            x = context(inv)
-            before = inv.reminders_sent
-            a = self._choose(x)
-            msg = llm.write_reminder(a, {"client_name": inv.client_name, "company": inv.company,
-                                         "amount": inv.amount, "days_overdue": inv.days_overdue,
-                                         "po_number": row["po"], "billing_contact": "ap@client.example",
-                                         "last_reply": inv.last_reply})
-            if a != "wait":
-                self.pp.remind(row["paypal_id"], msg["subject"], msg["note"])
-            out = step(inv, a, lambda t: llm.classify_reply(t)["reason"])
+            if not inv.closed:
+                x = context(inv)
+                todo.append((row, x, inv.reminders_sent, self._choose(x)))
+        # Each invoice's API calls are independent, so run them in parallel.
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            results = list(ex.map(lambda t: self._act(t[0], t[3]), todo))
+        for (row, x, before, a), (msg, out, status) in zip(todo, results):
+            inv = row["inv"]
             self.model.update(x, a, reward(a, out["paid"], before))
-            if out["paid"]:
-                self.pp.record_payment(row["paypal_id"], inv.amount)
-            row.update(status=self.pp.get_invoice(row["paypal_id"]).get("status", row["status"]),
-                       last_action=a, subject=msg["subject"], note=msg["note"], reason=inv.reason)
+            row.update(status=status, last_action=a, subject=msg["subject"], note=msg["note"], reason=inv.reason)
             self.log.append({"epoch": self.epoch, "day": out["day"], "paypal_id": row["paypal_id"],
                              "client": inv.client_name, "action": ACTION_LABELS[a], "subject": msg["subject"],
                              "note": msg["note"], "writer": msg["source"], "reply": out["reply"] or "",
-                             "reason": inv.reason, "paid": out["paid"], "paypal_status": row["status"]})
+                             "reason": inv.reason, "paid": out["paid"], "paypal_status": status})
 
     def table(self) -> list[dict]:
         out = []
