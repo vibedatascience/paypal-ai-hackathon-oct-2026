@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nudge Bandit</title>
+<script src="/static/vendor/ag-grid-community.min.js"></script>
+<script src="/static/vendor/ag-charts-community.min.js"></script>
+<style>
+  :root {
+    --red: #E60023; --navy: #0a3069; --teal: #0d9488; --slate: #64748b;
+    --bg: #f8fafc; --card: #ffffff; --line: #e2e8f0; --ink: #0f172a; --muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 12px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--navy); color: #fff; }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .2px; }
+  header .tag { opacity: .8; }
+  .chip { margin-left: auto; display: flex; gap: 6px; }
+  .chip span { background: rgba(255,255,255,.14); padding: 2px 8px; border-radius: 99px; font-size: 11px; }
+  main { padding: 12px 16px 24px; display: grid; gap: 12px; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 8px; }
+  .row { display: grid; gap: 12px; }
+  .kpis { grid-template-columns: repeat(4, 1fr); }
+  .two { grid-template-columns: 1fr 1fr; }
+  .kpi .v { font-size: 26px; font-weight: 700; color: var(--red); }
+  .kpi .b { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .kpi .b b { color: var(--ink); font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controls label { color: var(--muted); }
+  .controls input { width: 56px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; background: var(--navy); color: #fff; }
+  button.alt { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  button.red { background: var(--red); }
+  button:disabled { opacity: .5; cursor: default; }
+  #chart { height: 360px; }
+  .grid { height: 230px; }
+  .grid.tall { height: 270px; }
+  .err { color: var(--red); }
+  .pill { padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .pill.SENT { background: #fef3c7; color: #92400e; } .pill.MARKED_AS_PAID, .pill.PAID { background: #ccfbf1; color: #115e59; }
+  .pill.DRAFT { background: #e2e8f0; color: #334155; }
+  @media (max-width: 900px) { .kpis { grid-template-columns: 1fr 1fr; } .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nudge Bandit</h1>
+  <span class="tag">Learns which PayPal invoice reminder gets each client to pay.</span>
+  <div class="chip"><span id="ppMode">PayPal: ...</span><span id="llmMode">LLM: ...</span></div>
+</header>
+<main>
+  <section class="card controls">
+    <label>Weeks <input id="weeks" type="number" value="26" min="4" max="52"></label>
+    <label>Invoices / week <input id="perWeek" type="number" value="20" min="5" max="100"></label>
+    <label>Seed <input id="seed" type="number" value="7"></label>
+    <button id="runSim">Run simulation</button>
+    <span id="simMsg" style="color:var(--muted)"></span>
+  </section>
+
+  <section class="row kpis">
+    <div class="card kpi"><h2>Mean days to paid</h2><div class="v" id="k1">-</div><div class="b" id="k1b"></div></div>
+    <div class="card kpi"><h2>Paid within 30 days</h2><div class="v" id="k2">-</div><div class="b" id="k2b"></div></div>
+    <div class="card kpi"><h2>Unpaid at 60 days</h2><div class="v" id="k3">-</div><div class="b" id="k3b"></div></div>
+    <div class="card kpi"><h2>Reminders per invoice</h2><div class="v" id="k4">-</div><div class="b" id="k4b"></div></div>
+  </section>
+
+  <section class="card"><h2>Days to paid as the bandit learns (3-week rolling mean, by invoice week)</h2><div id="chart"></div></section>
+
+  <section class="row two">
+    <div class="card"><h2>What it learned: expected reward per action</h2><div id="gProfiles" class="grid"></div></div>
+    <div class="card"><h2>Mean days to paid by client type</h2><div id="gSeg" class="grid"></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Live lane: real PayPal sandbox invoices</h2>
+    <div class="controls" style="margin-bottom:8px">
+      <button class="red" id="liveStart">Create + send 6 invoices</button>
+      <button class="alt" id="liveStep" disabled>Next 3 days</button>
+      <button class="alt" id="liveRun" disabled>Run to day 30</button>
+      <span id="liveMsg" style="color:var(--muted)"></span>
+    </div>
+    <div id="gLive" class="grid"></div>
+  </section>
+
+  <section class="card"><h2>Reminders sent through PayPal /remind</h2><div id="gLog" class="grid tall"></div></section>
+</main>
+
+<script>
+const C = { bandit: '#E60023', llm_wrapper: '#0d9488', fixed_schedule: '#64748b', llm_wrapper_frequent: '#0a3069' };
+let LABELS = {};
+const $ = (id) => document.getElementById(id);
+const theme = agGrid.themeQuartz.withParams({ fontSize: 11, headerFontSize: 11, rowHeight: 28, headerHeight: 30,
+  accentColor: '#0a3069', spacing: 5 });
+
+function grid(el, columnDefs, extra = {}) {
+  return agGrid.createGrid($(el), { theme, columnDefs, rowData: [],
+    defaultColDef: { resizable: true, sortable: true, flex: 1, minWidth: 80 }, ...extra });
+}
+const heat = (p) => {
+  const v = p.value; if (v == null) return null;
+  const a = Math.max(0, Math.min(1, v / 0.6));
+  return { backgroundColor: `rgba(230,0,35,${(a * 0.55).toFixed(2)})`, fontWeight: p.data.best_action === p.colDef.field ? 700 : 400 };
+};
+const SHORT = { wait: 'Wait', friendly: 'Friendly', short_link: '1-tap link', include_po: 'PO resend', late_fee: 'Late fee' };
+const actionCols = () => ['wait', 'friendly', 'short_link', 'include_po', 'late_fee'].map(a => ({
+  field: a, headerName: SHORT[a], cellStyle: heat, minWidth: 90,
+  headerTooltip: LABELS[a], valueFormatter: p => p.value == null ? '' : p.value.toFixed(2),
+  tooltipValueGetter: p => p.data ? `90% interval ${p.data[a + '_lo'].toFixed(2)} to ${p.data[a + '_hi'].toFixed(2)}` : ''
+}));
+
+let gProfiles, gSeg, gLive, gLog, chart;
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+function drawChart(r) {
+  const data = r.weeks.map((w, i) => {
+    const row = { week: w };
+    for (const k of Object.keys(r.weekly_mean_days)) row[k] = r.weekly_mean_days[k][i];
+    return row;
+  });
+  const last = r.weeks[r.weeks.length - 1];
+  const order = ['fixed_schedule', 'llm_wrapper', 'bandit'];
+  const series = order.map(k => ({
+    type: 'line', xKey: 'week', yKey: k, yName: r.kpis[k].label,
+    stroke: C[k], strokeWidth: k === 'bandit' ? 3.5 : 2, lineDash: k === 'llm_wrapper_frequent' ? [5, 4] : undefined,
+    marker: { enabled: false },
+    label: { enabled: true, fontSize: 11, fontWeight: 700, color: C[k], placement: 'right',
+             formatter: ({ datum }) => datum.week === last ? `${datum[k].toFixed(1)}d` : '' },
+  }));
+  const opts = { container: $('chart'), data, series, background: { fill: 'white' },
+    padding: { right: 48 },
+    axes: { x: { type: 'number', position: 'bottom', max: last, title: { text: 'Invoice week', fontSize: 11 }, label: { fontSize: 10 } },
+            y: { type: 'number', position: 'left', title: { text: 'Mean days to paid (unpaid counts as 60)', fontSize: 11 },
+                 label: { fontSize: 10 }, min: 0 } },
+    legend: { position: 'top', item: { label: { fontSize: 11 } } } };
+  if (chart) chart.update(opts); else chart = agCharts.AgCharts.create(opts);
+}
+
+function drawKpis(k) {
+  const b = k.bandit, w = k.llm_wrapper, f = k.fixed_schedule;
+  $('k1').textContent = b.mean_days_to_paid.toFixed(1);
+  $('k1b').innerHTML = `LLM wrapper <b>${w.mean_days_to_paid}</b> · Fixed <b>${f.mean_days_to_paid}</b>`;
+  $('k2').textContent = b.paid_within_30d_pct.toFixed(1) + '%';
+  $('k2b').innerHTML = `LLM wrapper <b>${w.paid_within_30d_pct}%</b> · Fixed <b>${f.paid_within_30d_pct}%</b>`;
+  $('k3').textContent = b.unpaid_at_60d_pct.toFixed(1) + '%';
+  $('k3b').innerHTML = `LLM wrapper <b>${w.unpaid_at_60d_pct}%</b> · Fixed <b>${f.unpaid_at_60d_pct}%</b>`;
+  $('k4').textContent = b.reminders_per_invoice.toFixed(1);
+  $('k4b').innerHTML = `Wrapper every 3 days <b>${k.llm_wrapper_frequent.reminders_per_invoice}</b> for <b>${k.llm_wrapper_frequent.mean_days_to_paid}</b> days`;
+}
+
+async function runSim() {
+  $('runSim').disabled = true; $('simMsg').textContent = 'Running...';
+  try {
+    const r = await api('/api/simulate', 'POST', { weeks: +$('weeks').value, per_week: +$('perWeek').value, seed: +$('seed').value });
+    drawKpis(r.kpis); drawChart(r);
+    gProfiles.setGridOption('rowData', r.profiles);
+    gSeg.setGridOption('rowData', r.days_by_segment);
+    $('simMsg').textContent = `${r.n_invoices} simulated invoices, same invoices for every policy.`;
+  } catch (e) { $('simMsg').innerHTML = `<span class="err">${e.message}</span>`; }
+  $('runSim').disabled = false;
+}
+
+function drawLive(v) {
+  gLive.setGridOption('rowData', v.invoices);
+  gLog.setGridOption('rowData', [...v.log].reverse());
+  const paid = v.invoices.filter(i => i.paid_day != null).length;
+  $('liveMsg').textContent = `Day ${v.epoch * 3} · ${paid}/${v.invoices.length} paid · ${v.paypal_calls} PayPal API calls (${v.mode})`;
+}
+
+async function live(path) {
+  ['liveStart', 'liveStep', 'liveRun'].forEach(id => $(id).disabled = true);
+  try {
+    let v;
+    if (path === 'run') { for (let i = 0; i < 10; i++) { v = await api('/api/live/step', 'POST'); drawLive(v); } }
+    else { v = await api(path, 'POST'); drawLive(v); }
+    $('liveStep').disabled = $('liveRun').disabled = false;
+  } catch (e) { $('liveMsg').innerHTML = `<span class="err">${e.message}</span>`; }
+  $('liveStart').disabled = false;
+}
+
+(async function init() {
+  const s = await api('/api/status');
+  LABELS = s.action_labels;
+  $('ppMode').textContent = `PayPal: ${s.paypal_mode}`;
+  $('llmMode').textContent = `LLM: ${s.llm_provider}`;
+  gProfiles = grid('gProfiles', [{ field: 'profile', headerName: 'Invoice context', minWidth: 190, flex: 2, tooltipField: 'profile' }, ...actionCols()],
+                   { tooltipShowDelay: 200 });
+  gSeg = grid('gSeg', [
+    { field: 'segment', headerName: 'Client type (hidden from bandit)', minWidth: 190, flex: 2 },
+    { field: 'fixed_schedule', headerName: 'Fixed' }, { field: 'llm_wrapper', headerName: 'LLM wrapper' },
+    { field: 'llm_wrapper_frequent', headerName: 'Wrapper, 3-day' },
+    { field: 'bandit', headerName: 'Bandit', cellStyle: { color: '#E60023', fontWeight: 700 } }]);
+  gLive = grid('gLive', [
+    { field: 'paypal_id', headerName: 'PayPal invoice', minWidth: 150 }, { field: 'client' }, { field: 'company' },
+    { field: 'segment_hidden', headerName: 'Hidden type', minWidth: 140 },
+    { field: 'amount', valueFormatter: p => '$' + p.value.toLocaleString() },
+    { field: 'days_overdue', headerName: 'Days late' }, { field: 'reminders' },
+    { field: 'llm_reason', headerName: 'LLM: why late' },
+    { field: 'last_action', headerName: 'Last action', minWidth: 190, flex: 2 },
+    { field: 'paypal_status', headerName: 'PayPal status', minWidth: 130,
+      cellRenderer: p => `<span class="pill ${p.value}">${p.value === 'MARKED_AS_PAID' ? 'PAID' : p.value}</span>`,
+      tooltipField: 'paypal_status' }]);
+  gLog = grid('gLog', [
+    { field: 'day', headerName: 'Day', maxWidth: 70 }, { field: 'client', maxWidth: 90 },
+    { field: 'action', minWidth: 170 }, { field: 'subject', minWidth: 200, flex: 2 },
+    { field: 'note', minWidth: 320, flex: 4, tooltipField: 'note' }, { field: 'writer', maxWidth: 80 },
+    { field: 'reply', headerName: 'Client reply', minWidth: 220, flex: 2, tooltipField: 'reply' },
+    { field: 'reason', headerName: 'LLM label', maxWidth: 100 },
+    { field: 'paid', maxWidth: 70, cellDataType: false, cellRenderer: p => p.value ? '<b style="color:#0d9488">Paid</b>' : '' }],
+    { tooltipShowDelay: 200, getRowStyle: p => p.data.paid ? { background: '#f0fdfa' } : null });
+  $('runSim').onclick = runSim;
+  $('liveStart').onclick = () => live('/api/live/start');
+  $('liveStep').onclick = () => live('/api/live/step');
+  $('liveRun').onclick = () => live('run');
+  runSim();
+})();
+</script>
+</body>
+</html>

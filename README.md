@@ -1,0 +1,99 @@
+# Nudge Bandit
+
+Nudge Bandit learns which PayPal invoice reminder gets each client to pay, then proves it with a measured gain in days-to-paid.
+
+Most invoicing tools, and most LLM add-ons, send the same polite reminder on a fixed schedule. Clients do not pay late for the same reason. A corporate accounts payable team needs a PO number before its payment run. A startup founder forgot and will pay from a phone in one tap. A repeat late payer moves only when a late fee is mentioned. Nudge Bandit treats each reminder as a decision, observes whether the client paid, and updates what it does next.
+
+![screenshot](docs/screenshot.png)
+
+## How it works
+
+```
+client reply ──> LLM labels why it is late ──┐
+invoice facts (business?, size, history) ────┼──> contextual bandit picks: wait | friendly | 1-tap link | PO resend | late fee
+calendar (AP payment run soon?) ─────────────┘                     │
+                                                                   v
+                                     LLM writes the reminder in that style
+                                                                   │
+                                                                   v
+                                     PayPal /v2/invoicing/invoices/{id}/remind
+                                                                   │
+                                     paid before next decision? ──> reward ──> bandit update
+```
+
+* **Bandit:** disjoint linear Thompson sampling, one Bayesian linear regression per action over 10 context features (`app/bandit.py`). Reward is 1 if the invoice is paid before the next decision, minus a cost per reminder that grows after the second reminder, so it learns to back off instead of spamming.
+* **LLM:** labels client replies (`needs_po`, `forgot`, `cash_tight`, `other`), which become bandit features, and writes the reminder subject and note in the style the bandit chose (`app/llm.py`).
+* **PayPal:** every live invoice exists in the PayPal sandbox. The app creates and sends it, sends each reminder through `/remind` with the LLM-written note, records the payment when the client pays, and reads the status back (`app/paypal.py`).
+
+## Results (simulation, 520 invoices, 26 weeks, seed 7)
+
+All policies see the same invoices.
+
+| Policy | Mean days to paid | Median | Paid within 30 days | Unpaid at 60 days | Reminders per invoice |
+|---|---|---|---|---|---|
+| Fixed schedule | 31.6 | 23.5 | 54.2% | 35.4% | 3.1 |
+| LLM wrapper (reads replies, fixed timing) | 25.3 | 20.0 | 68.3% | 18.3% | 2.7 |
+| LLM wrapper, every 3 days | 24.2 | 10.0 | 66.9% | 31.2% | 8.6 |
+| **Nudge Bandit** | **12.8** | **4.0** | **85.6%** | **10.6%** | **2.7** |
+
+The bandit sends the same number of reminders as the LLM wrapper and gets paid in half the time. Reminding more often does not close the gap; the every-3-days wrapper sends 3x more reminders and is still near 24 days. Results hold across seeds (`tests/test_core.py`).
+
+**Caveat.** The clients are simulated, and their hidden behaviors are defined in `app/simulator.py`. The numbers show that the method finds per-segment strategies and that the gain does not come from spamming. They are not a forecast for a real business. The next step is to fit the simulator to a real invoice history.
+
+## PayPal APIs used
+
+| Call | Purpose |
+|---|---|
+| `POST /v1/oauth2/token` | Sandbox auth |
+| `POST /v2/invoicing/invoices` | Create invoice (PO in `detail.reference`) |
+| `POST /v2/invoicing/invoices/{id}/send` | Send to client |
+| `POST /v2/invoicing/invoices/{id}/remind` | Send the bandit-chosen, LLM-written reminder |
+| `POST /v2/invoicing/invoices/{id}/payments` | Record payment when the client pays |
+| `GET /v2/invoicing/invoices/{id}` | Read status back from PayPal |
+
+## AI tools used
+
+| Tool | Use |
+|---|---|
+| Claude (Anthropic API, `claude-haiku-5-5` by default) | Labels client replies and writes reminder subject and note |
+| Linear Thompson sampling (NumPy, written for this project) | Chooses the reminder action per invoice and learns from payments |
+| Claude | Coding assistant during development |
+
+OpenAI works too (`OPENAI_API_KEY`). With no key, deterministic fallbacks keep the app runnable, and the UI shows `LLM: fallback`.
+
+## Run it
+
+```bash
+git clone https://github.com/vibedatascience/nudge-bandit && cd nudge-bandit
+pip install -r requirements.txt
+cp .env.example .env    # add PayPal sandbox + Anthropic keys, or leave blank for mock mode
+uvicorn app.main:app --port 8000
+# open http://localhost:8000
+```
+
+1. The simulation runs on page load. Change weeks, invoices per week, or seed and click **Run simulation**.
+2. Click **Create + send 6 invoices** to create real sandbox invoices.
+3. Click **Next 3 days** or **Run to day 30**. Each reminder goes through PayPal `/remind`, and paid invoices flip to PAID in PayPal.
+
+The header shows `PayPal: sandbox` or `PayPal: mock`.
+
+### PayPal sandbox setup
+
+1. developer.paypal.com > Apps & Credentials > Sandbox > Create App.
+2. In the app's features, make sure **Invoicing** is enabled.
+3. Copy the Client ID and Secret into `.env`.
+4. Set `PAYPAL_RECIPIENT_EMAIL` to a sandbox personal account email (Testing Tools > Sandbox Accounts).
+
+### Deploy on Render
+
+`render.yaml` is included. New > Blueprint > pick this repo, then fill in the secret env vars.
+
+## Tests
+
+```bash
+pip install pytest && python -m pytest -q
+```
+
+## License
+
+MIT

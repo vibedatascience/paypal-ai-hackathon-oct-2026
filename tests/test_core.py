@@ -1,0 +1,36 @@
+from fastapi.testclient import TestClient
+
+from app.experiment import run
+from app.llm import classify_reply_fast, write_reminder
+from app.main import app
+
+
+def test_bandit_beats_baselines_across_seeds():
+    for seed in (1, 2, 3):
+        k = run(weeks=20, per_week=20, seed=seed)["kpis"]
+        assert k["bandit"]["mean_days_to_paid"] < k["llm_wrapper"]["mean_days_to_paid"]
+        assert k["bandit"]["mean_days_to_paid"] < k["llm_wrapper_frequent"]["mean_days_to_paid"]
+        # Not winning by spamming: similar reminder volume to the wrapper.
+        assert k["bandit"]["reminders_per_invoice"] < 1.5 * k["llm_wrapper"]["reminders_per_invoice"]
+
+
+def test_fallback_classifier():
+    assert classify_reply_fast("Our AP team needs a PO number on this") == "needs_po"
+    assert classify_reply_fast("Sorry, totally forgot!") == "forgot"
+    assert classify_reply_fast("Cash flow is tight this month") == "cash_tight"
+
+
+def test_fallback_writer():
+    m = write_reminder("include_po", {"client_name": "Jordan", "amount": 4800, "days_overdue": 9, "po_number": "PO-1"})
+    assert "PO-1" in m["note"] and m["subject"]
+
+
+def test_live_lane_mock_end_to_end():
+    c = TestClient(app)
+    assert c.post("/api/simulate", json={"weeks": 8, "per_week": 10}).status_code == 200
+    v = c.post("/api/live/start").json()
+    assert len(v["invoices"]) == 6 and all(i["paypal_status"] == "SENT" for i in v["invoices"])
+    for _ in range(10):
+        v = c.post("/api/live/step").json()
+    assert any(i["paypal_status"] == "MARKED_AS_PAID" for i in v["invoices"])
+    assert any(r["action"] != "Wait" for r in v["log"])
