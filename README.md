@@ -64,7 +64,7 @@ OpenAI works too (`OPENAI_API_KEY`). With no key, deterministic fallbacks keep t
 ## Run it
 
 ```bash
-git clone https://github.com/vibedatascience/paypal-ai-hackathon-invoice-reminders && cd paypal-ai-hackathon-invoice-reminders
+git clone https://github.com/vibedatascience/paypal-ai-hackathon-oct-2026 && cd paypal-ai-hackathon-oct-2026
 pip install -r requirements.txt
 cp .env.example .env    # add PayPal sandbox + Anthropic keys, or leave blank for mock mode
 uvicorn app.main:app --port 8000
