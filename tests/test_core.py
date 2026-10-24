@@ -25,7 +25,8 @@ def test_fallback_writer():
     assert "PO-1" in m["note"] and m["subject"]
 
 
-def test_live_lane_mock_end_to_end():
+def test_live_lane_mock_end_to_end(monkeypatch):
+    monkeypatch.delenv("PAYPAL_CLIENT_ID", raising=False)  # always use the mock in tests
     c = TestClient(app)
     assert c.post("/api/simulate", json={"weeks": 8, "per_week": 10}).status_code == 200
     v = c.post("/api/live/start").json()
