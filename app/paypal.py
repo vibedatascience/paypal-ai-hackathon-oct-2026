@@ -76,7 +76,7 @@ class PayPalSandbox:
     def record_payment(self, invoice_id: str, amount: float) -> dict:
         return self._req("POST", f"/v2/invoicing/invoices/{invoice_id}/payments",
                          {"method": "BANK_TRANSFER", "payment_date": dt.date.today().isoformat(), "amount": _money(amount),
-                          "note": "Recorded by Nudge Bandit demo"})
+                          "note": "Recorded by Smart Invoice Reminders demo"})
 
     def get_invoice(self, invoice_id: str) -> dict:
         return self._req("GET", f"/v2/invoicing/invoices/{invoice_id}")

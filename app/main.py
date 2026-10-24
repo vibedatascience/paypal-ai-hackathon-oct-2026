@@ -24,7 +24,7 @@ from .live import LiveLane
 from .simulator import ACTION_LABELS
 
 STATIC = Path(__file__).parent / "static"
-app = FastAPI(title="Nudge Bandit")
+app = FastAPI(title="Smart Invoice Reminders for PayPal")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 STATE: dict = {"sim": None, "model": None, "lane": None}

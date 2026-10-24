@@ -33,5 +33,5 @@ POLICY_LABELS = {
     "fixed_schedule": "Fixed schedule",
     "llm_wrapper": "LLM wrapper",
     "llm_wrapper_frequent": "LLM wrapper, every 3 days",
-    "bandit": "Nudge Bandit",
+    "bandit": "Learning bandit",
 }

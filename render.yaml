@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: nudge-bandit
+    name: paypal-ai-invoice-reminders
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

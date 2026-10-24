@@ -1,8 +1,8 @@
-# Nudge Bandit
+# Smart Invoice Reminders for PayPal
 
-Nudge Bandit learns which PayPal invoice reminder gets each client to pay, then proves it with a measured gain in days-to-paid.
+Smart Invoice Reminders learns which PayPal invoice reminder gets each client to pay, then proves it with a measured gain in days-to-paid.
 
-Most invoicing tools, and most LLM add-ons, send the same polite reminder on a fixed schedule. Clients do not pay late for the same reason. A corporate accounts payable team needs a PO number before its payment run. A startup founder forgot and will pay from a phone in one tap. A repeat late payer moves only when a late fee is mentioned. Nudge Bandit treats each reminder as a decision, observes whether the client paid, and updates what it does next.
+Most invoicing tools, and most LLM add-ons, send the same polite reminder on a fixed schedule. Clients do not pay late for the same reason. A corporate accounts payable team needs a PO number before its payment run. A startup founder forgot and will pay from a phone in one tap. A repeat late payer moves only when a late fee is mentioned. It treats each reminder as a decision, observes whether the client paid, and updates what it does next.
 
 ![screenshot](docs/screenshot.png)
 
@@ -34,7 +34,7 @@ All policies see the same invoices.
 | Fixed schedule | 31.6 | 23.5 | 54.2% | 35.4% | 3.1 |
 | LLM wrapper (reads replies, fixed timing) | 25.3 | 20.0 | 68.3% | 18.3% | 2.7 |
 | LLM wrapper, every 3 days | 24.2 | 10.0 | 66.9% | 31.2% | 8.6 |
-| **Nudge Bandit** | **12.8** | **4.0** | **85.6%** | **10.6%** | **2.7** |
+| **Learning bandit** | **12.8** | **4.0** | **85.6%** | **10.6%** | **2.7** |
 
 The bandit sends the same number of reminders as the LLM wrapper and gets paid in half the time. Reminding more often does not close the gap; the every-3-days wrapper sends 3x more reminders and is still near 24 days. Results hold across seeds (`tests/test_core.py`).
 
@@ -64,7 +64,7 @@ OpenAI works too (`OPENAI_API_KEY`). With no key, deterministic fallbacks keep t
 ## Run it
 
 ```bash
-git clone https://github.com/vibedatascience/nudge-bandit && cd nudge-bandit
+git clone https://github.com/vibedatascience/paypal-ai-hackathon-invoice-reminders && cd paypal-ai-hackathon-invoice-reminders
 pip install -r requirements.txt
 cp .env.example .env    # add PayPal sandbox + Anthropic keys, or leave blank for mock mode
 uvicorn app.main:app --port 8000
