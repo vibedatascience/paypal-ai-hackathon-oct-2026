@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import itertools
 import os
+import threading
 import time
 
 import httpx
@@ -33,11 +34,16 @@ class PayPalSandbox:
     def __init__(self, client_id: str, secret: str, base: str = SANDBOX):
         self.client_id, self.secret, self.base = client_id, secret, base
         self._token, self._exp = None, 0.0
+        self._lock = threading.Lock()
         self.calls: list[dict] = []
 
     def _auth(self) -> str:
-        if self._token and time.time() < self._exp - 60:
-            return self._token
+        with self._lock:  # one token fetch even when invoices are processed in parallel
+            if self._token and time.time() < self._exp - 60:
+                return self._token
+            return self._fetch_token()
+
+    def _fetch_token(self) -> str:
         r = httpx.post(f"{self.base}/v1/oauth2/token", auth=(self.client_id, self.secret),
                        data={"grant_type": "client_credentials"}, timeout=30)
         r.raise_for_status()
@@ -48,8 +54,12 @@ class PayPalSandbox:
     def _req(self, method: str, path: str, json: dict | None = None) -> dict:
         headers = {"Authorization": f"Bearer {self._auth()}", "Content-Type": "application/json",
                    "Prefer": "return=representation"}
-        r = httpx.request(method, f"{self.base}{path}", headers=headers, json=json, timeout=30)
-        self.calls.append({"method": method, "path": path, "status": r.status_code})
+        for attempt in range(3):  # retry transient sandbox errors
+            r = httpx.request(method, f"{self.base}{path}", headers=headers, json=json, timeout=30)
+            self.calls.append({"method": method, "path": path, "status": r.status_code})
+            if r.status_code not in (429, 500, 502, 503, 504):
+                break
+            time.sleep(1.5 * (attempt + 1))
         if r.status_code >= 400:
             raise RuntimeError(f"PayPal {method} {path} -> {r.status_code}: {r.text[:300]}")
         return r.json() if r.content else {}
