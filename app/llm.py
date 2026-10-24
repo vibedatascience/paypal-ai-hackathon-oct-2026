@@ -127,11 +127,16 @@ def write_reminder(action: str, inv: dict) -> dict:
         return {**_fallback_reminder(action, inv), "source": "fallback"}
     system = ("You write invoice payment reminders on behalf of a freelancer. Follow the requested style "
               "exactly. Output JSON only: {\"subject\": str (<= 60 chars), \"note\": str (<= 600 chars)}. "
-              "Do not invent amounts, dates or fees beyond what is given. Plain text, no markdown.")
+              "Use only the facts given. If a field is null, leave it out; never write placeholders such as "
+              "'not specified' or 'please confirm'. days_overdue 0 means the invoice is due today. Address the "
+              "client by client_name and sign as sender_name. Plain text, no markdown.")
+    days = inv["days_overdue"]
     user = json.dumps({"style": STYLE[action], "client_name": inv["client_name"], "company": inv.get("company"),
-                       "amount_usd": inv["amount"], "days_overdue": inv["days_overdue"],
+                       "amount_usd": inv["amount"], "days_overdue": days,
+                       "status": "due today" if days == 0 else f"{days} days overdue",
                        "po_number": inv.get("po_number"), "billing_contact": inv.get("billing_contact"),
-                       "client_last_reply": inv.get("last_reply")})
+                       "client_last_reply": inv.get("last_reply"),
+                       "sender_name": os.getenv("SENDER_NAME", "Northside Studio")})
     try:
         raw = _chat(system, user)
         out = json.loads(raw[raw.find("{"): raw.rfind("}") + 1], strict=False)
