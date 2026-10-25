@@ -1,3 +1,34 @@
+# PayPal AI Hackathon, October 2026
+
+This repo holds two apps that share one FastAPI service:
+
+| App | URL | What it does |
+|---|---|---|
+| **Self-Optimizing Checkout** | [/checkout](https://paypal-ai-invoice-reminders.onrender.com/checkout) | The checkout watches where shoppers give up, Claude suggests a better layout, a statistical test proves it, and only winners are kept. |
+| **Smart Invoice Reminders** | [/](https://paypal-ai-invoice-reminders.onrender.com) | Learns which PayPal invoice reminder gets each client to pay. |
+
+## Self-Optimizing Checkout
+
+**In plain words:** every store shows every shopper the same checkout, but different shoppers get stuck in different places. This checkout works like a store manager who never sleeps:
+
+1. **Watch:** log every checkout, which button each shopper tapped and where they gave up.
+2. **Suggest:** Claude reads the drop-offs and proposes a new layout, with a one-line reason.
+3. **Test:** some shoppers see the new layout; what works automatically gets more shoppers.
+4. **Keep:** clear winners become the default for that type of shopper; bad ideas switch themselves off.
+
+![checkout](docs/checkout.png)
+
+**How it is built**
+
+* `app/checkout/sim.py`: simulated shoppers with hidden traits (PayPal account, Venmo user, age) and step-by-step funnel events.
+* `app/checkout/advisor.py`: Claude reads the funnel per shopper segment and proposes up to 3 layouts as JSON. It may change only button order, the Pay in 4 message position, and the headline. Proposals are validated (PayPal and card must always be offered).
+* `app/checkout/engine.py`: Thompson sampling with a Beta-Bernoulli model per segment and layout. Keep at a 95% chance of being best; stop early at a 97% chance of being worse. Goal: all orders, or checkouts paid with PayPal, Venmo or Pay Later.
+* `app/static/checkout.html`: live preview with real PayPal JavaScript SDK buttons and Pay in 4 messages; paying from the preview creates and captures a real sandbox order (Orders API v2).
+
+Result of one run (32,000 simulated shoppers, 9 ideas from Claude, 4 kept): checkout conversion 46.1% → 49.5%, about 340 more orders per 10,000 shoppers. Shoppers are simulated; buttons, messages and orders are real PayPal sandbox calls.
+
+---
+
 # Smart Invoice Reminders for PayPal
 
 Smart Invoice Reminders learns which PayPal invoice reminder gets each client to pay, then proves it with a measured gain in days-to-paid.
