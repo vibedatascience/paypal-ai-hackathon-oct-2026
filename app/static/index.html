@@ -3,97 +3,190 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart Invoice Reminders</title>
+<title>Smart Reminders · Invoicing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="/static/vendor/ag-grid-community.min.js"></script>
 <script src="/static/vendor/ag-charts-community.min.js"></script>
 <style>
   :root {
-    --red: #E60023; --navy: #0a3069; --teal: #0d9488; --slate: #64748b;
-    --bg: #f8fafc; --card: #ffffff; --line: #e2e8f0; --ink: #0f172a; --muted: #64748b;
+    --blue: #0070E0;       /* primary action blue */
+    --deep: #003087;       /* deep navy */
+    --ink: #001435;        /* headings */
+    --text: #2c2e2f;
+    --muted: #6c7378;
+    --bg: #F1F4F8;         /* app canvas */
+    --card: #ffffff;
+    --line: #e3e7ee;
+    --soft: #EAF3FD;       /* light blue fill */
+    --green: #017A3B; --greenbg: #E6F4EC;
+    --amber: #8A5A00; --amberbg: #FFF4D6;
+    --red: #C4252C; --redbg: #FDECEC;
+    --radius: 24px;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 12px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--navy); color: #fff; }
-  header h1 { font-size: 15px; margin: 0; letter-spacing: .2px; }
-  header .tag { opacity: .8; }
-  .chip { margin-left: auto; display: flex; gap: 6px; }
-  .chip span { background: rgba(255,255,255,.14); padding: 2px 8px; border-radius: 99px; font-size: 11px; }
-  main { padding: 12px 16px 24px; display: grid; gap: 12px; max-width: 1400px; margin: 0 auto; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
-  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 8px; }
-  .row { display: grid; gap: 12px; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  /* top bar */
+  .top { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top .in { max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 68px; display: flex; align-items: center; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink); font-size: 17px; }
+  .brand i { width: 34px; height: 34px; border-radius: 10px; background: var(--deep); display: grid; place-items: center;
+             color: #fff; font-style: normal; font-size: 15px; }
+  .nav { display: flex; gap: 22px; font-weight: 600; color: var(--muted); }
+  .nav span.on { color: var(--ink); box-shadow: inset 0 -3px 0 var(--blue); padding-bottom: 22px; margin-bottom: -22px; }
+  .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .env { font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 99px; background: var(--soft); color: var(--deep); }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--deep); color: #fff; display: grid; place-items: center;
+            font-weight: 700; font-size: 14px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 28px 24px 40px; display: grid; gap: 20px; }
+  h1 { font-size: 40px; font-weight: 800; color: var(--ink); margin: 0; letter-spacing: -.6px; }
+  .tabs { display: flex; gap: 8px; margin-top: 14px; }
+  .tabs span { padding: 9px 18px; border-radius: 99px; font-weight: 600; color: var(--muted); background: transparent; }
+  .tabs span.on { background: var(--ink); color: #fff; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 24px 26px; box-shadow: 0 1px 2px rgba(0,20,53,.04); }
+  .card h2 { margin: 0 0 4px; font-size: 20px; font-weight: 800; color: var(--ink); }
+  .card .sub { color: var(--muted); font-size: 14px; }
+  .row { display: grid; gap: 20px; }
+  /* hero */
+  .hero { display: flex; align-items: center; gap: 22px; background: linear-gradient(100deg, var(--deep), #0059B8 70%, var(--blue)); color: #fff; }
+  .hero .ic { width: 64px; height: 64px; border-radius: 18px; background: rgba(255,255,255,.14); display: grid; place-items: center; font-size: 30px; }
+  .hero h2 { color: #fff; font-size: 26px; }
+  .hero .sub { color: rgba(255,255,255,.85); font-size: 15px; }
+  .toggle { margin-left: auto; display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  .sw { width: 52px; height: 30px; border-radius: 99px; background: #fff; position: relative; }
+  .sw::after { content: ""; position: absolute; right: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: var(--blue); }
+  /* stat cards */
   .kpis { grid-template-columns: repeat(4, 1fr); }
+  .kpi .l { font-size: 15px; color: var(--text); font-weight: 500; }
+  .kpi .v { font-size: 46px; font-weight: 800; color: var(--ink); letter-spacing: -1.2px; margin-top: 22px; line-height: 1; }
+  .kpi .v small { font-size: 20px; font-weight: 700; letter-spacing: 0; margin-left: 4px; color: var(--muted); }
+  .kpi .b { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  .kpi .b b { color: var(--text); }
+  .kpi .delta { display: inline-block; margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--green); background: var(--greenbg); padding: 3px 10px; border-radius: 99px; }
+  /* buttons */
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 99px; padding: 11px 22px; cursor: pointer; background: var(--blue); color: #fff; }
+  button:hover { background: #005EA6; }
+  button.alt { background: #fff; color: var(--blue); box-shadow: inset 0 0 0 2px var(--blue); }
+  button.alt:hover { background: var(--soft); }
+  button:disabled { opacity: .45; cursor: default; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0 6px; }
+  .bar .msg { color: var(--muted); font-size: 14px; margin-left: 6px; }
+  .err { color: var(--red); font-weight: 600; }
+  .head { display: flex; align-items: flex-start; gap: 20px; }
+  .head .tot { margin-left: auto; text-align: right; }
+  .head .tot .v { font-size: 34px; font-weight: 800; color: var(--ink); letter-spacing: -.8px; }
+  .head .tot .l { font-size: 13px; color: var(--muted); }
+  /* invoice activity list */
+  .list { margin-top: 6px; }
+  .item { display: grid; grid-template-columns: 52px 1.4fr 1.3fr 1.2fr 140px 120px; align-items: center; gap: 16px;
+          padding: 14px 4px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .ini { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 16px; }
+  .who b { display: block; color: var(--ink); font-size: 16px; }
+  .who span, .meta span { color: var(--muted); font-size: 13px; }
+  .meta b { display: block; font-size: 14px; color: var(--text); font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 5px 11px; border-radius: 99px;
+          background: var(--soft); color: var(--deep); white-space: nowrap; }
+  .chip.wait { background: #f1f3f6; color: var(--muted); }
+  .amt { text-align: right; font-weight: 800; color: var(--ink); font-size: 17px; }
+  .st { text-align: right; }
+  .pill { font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 99px; letter-spacing: .3px; }
+  .pill.PAID, .pill.MARKED_AS_PAID { background: var(--greenbg); color: var(--green); }
+  .pill.SENT { background: var(--amberbg); color: var(--amber); }
+  .pill.DRAFT { background: #eef0f3; color: var(--muted); }
+  .empty { color: var(--muted); padding: 26px 4px; text-align: center; }
   .two { grid-template-columns: 1fr 1fr; }
-  .kpi .v { font-size: 26px; font-weight: 700; color: var(--red); }
-  .kpi .b { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  .kpi .b b { color: var(--ink); font-weight: 600; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .controls label { color: var(--muted); }
-  .controls input { width: 56px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
-  button { font: inherit; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; background: var(--navy); color: #fff; }
-  button.alt { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
-  button.red { background: var(--red); }
-  button:disabled { opacity: .5; cursor: default; }
-  #chart { height: 360px; }
-  .grid { height: 230px; }
-  .grid.tall { height: 270px; }
-  .err { color: var(--red); }
-  .pill { padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-  .pill.SENT { background: #fef3c7; color: #92400e; } .pill.MARKED_AS_PAID, .pill.PAID { background: #ccfbf1; color: #115e59; }
-  .pill.DRAFT { background: #e2e8f0; color: #334155; }
-  @media (max-width: 900px) { .kpis { grid-template-columns: 1fr 1fr; } .two { grid-template-columns: 1fr; } }
+  #chart { height: 360px; margin-top: 8px; }
+  .grid { height: 260px; margin-top: 12px; }
+  .grid.tall { height: 300px; }
+  .sim { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+  .sim input { width: 64px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; font: inherit; }
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 24px 30px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 960px) {
+    .kpis { grid-template-columns: 1fr 1fr; } .two { grid-template-columns: 1fr; } .nav { display: none; }
+    .item { grid-template-columns: 46px 1fr 110px; } .item .meta, .item .act { display: none; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>Smart Invoice Reminders for PayPal</h1>
-  <span class="tag">Learns which PayPal invoice reminder gets each client to pay.</span>
-  <div class="chip"><span id="ppMode">PayPal: ...</span><span id="llmMode">LLM: ...</span></div>
-</header>
+<div class="top"><div class="in">
+  <div class="brand"><i>SR</i>Business</div>
+  <div class="nav"><span>Home</span><span>Activity</span><span class="on">Invoicing</span><span>Payments</span><span>Reports</span></div>
+  <div class="right"><span class="env" id="ppMode">Sandbox</span><span class="env" id="llmMode">Claude</span><div class="avatar">NS</div></div>
+</div></div>
+
 <main>
-  <section class="card controls">
-    <label>Weeks <input id="weeks" type="number" value="26" min="4" max="52"></label>
-    <label>Invoices / week <input id="perWeek" type="number" value="20" min="5" max="100"></label>
-    <label>Seed <input id="seed" type="number" value="7"></label>
-    <button id="runSim">Run simulation</button>
-    <span id="simMsg" style="color:var(--muted)"></span>
+  <div>
+    <h1>Invoicing</h1>
+    <div class="tabs"><span>All invoices</span><span class="on">Smart Reminders</span><span>Estimates</span><span>Settings</span></div>
+  </div>
+
+  <section class="card hero">
+    <div class="ic">✦</div>
+    <div><h2>Smart Reminders</h2>
+      <div class="sub">Sends each client the reminder they respond to. Learns from every payment.</div></div>
+    <div class="toggle">On <div class="sw"></div></div>
   </section>
 
   <section class="row kpis">
-    <div class="card kpi"><h2>Mean days to paid</h2><div class="v" id="k1">-</div><div class="b" id="k1b"></div></div>
-    <div class="card kpi"><h2>Paid within 30 days</h2><div class="v" id="k2">-</div><div class="b" id="k2b"></div></div>
-    <div class="card kpi"><h2>Unpaid at 60 days</h2><div class="v" id="k3">-</div><div class="b" id="k3b"></div></div>
-    <div class="card kpi"><h2>Reminders per invoice</h2><div class="v" id="k4">-</div><div class="b" id="k4b"></div></div>
-  </section>
-
-  <section class="card"><h2>Days to paid as the bandit learns (3-week rolling mean, by invoice week)</h2><div id="chart"></div></section>
-
-  <section class="row two">
-    <div class="card"><h2>What it learned: expected reward per action</h2><div id="gProfiles" class="grid"></div></div>
-    <div class="card"><h2>Mean days to paid by client type</h2><div id="gSeg" class="grid"></div></div>
+    <div class="card kpi"><div class="l">Avg. days to get paid</div><div class="v" id="k1">–</div><div class="b" id="k1b"></div></div>
+    <div class="card kpi"><div class="l">Paid within 30 days</div><div class="v" id="k2">–</div><div class="b" id="k2b"></div></div>
+    <div class="card kpi"><div class="l">Still unpaid at 60 days</div><div class="v" id="k3">–</div><div class="b" id="k3b"></div></div>
+    <div class="card kpi"><div class="l">Reminders per invoice</div><div class="v" id="k4">–</div><div class="b" id="k4b"></div></div>
   </section>
 
   <section class="card">
-    <h2>Live lane: real PayPal sandbox invoices</h2>
-    <div class="controls" style="margin-bottom:8px">
-      <button class="red" id="liveStart">Create + send 6 invoices</button>
+    <div class="head">
+      <div><h2>Overdue invoices</h2><div class="sub">Real PayPal sandbox invoices. Smart Reminders picks each reminder; Claude writes it.</div></div>
+      <div class="tot"><div class="v" id="collected">$0</div><div class="l" id="collectedOf">collected</div></div>
+    </div>
+    <div class="bar">
+      <button id="liveStart">Create &amp; send 6 invoices</button>
       <button class="alt" id="liveStep" disabled>Next 3 days</button>
       <button class="alt" id="liveRun" disabled>Run to day 30</button>
-      <span id="liveMsg" style="color:var(--muted)"></span>
+      <span class="msg" id="liveMsg"></span>
     </div>
-    <div id="gLive" class="grid"></div>
+    <div id="gLive" class="list"><div class="empty">No invoices yet. Create and send 6 sandbox invoices to start.</div></div>
   </section>
 
-  <section class="card"><h2>Reminders sent through PayPal /remind</h2><div id="gLog" class="grid tall"></div></section>
+  <section class="card">
+    <h2>Reminder activity</h2>
+    <div class="sub">Every reminder sent through PayPal, with the client's reply and how Claude labeled it.</div>
+    <div id="gLog" class="grid tall"></div>
+  </section>
+
+  <section class="card">
+    <div class="head"><div><h2>Learning results</h2><div class="sub">Average days to get paid, by week, on 520 simulated invoices. Same invoices for every method.</div></div>
+      <div class="sim tot" style="text-align:left">
+        <label>Weeks <input id="weeks" type="number" value="26" min="4" max="52"></label>
+        <label>Per week <input id="perWeek" type="number" value="20" min="5" max="100"></label>
+        <label>Seed <input id="seed" type="number" value="7"></label>
+        <button class="alt" id="runSim">Rerun</button>
+      </div></div>
+    <div id="chart"></div>
+    <div class="sub" id="simMsg"></div>
+  </section>
+
+  <section class="row two">
+    <div class="card"><h2>What it learned</h2><div class="sub">Expected reward per reminder type (about the chance of payment in the next 3 days).</div>
+      <div id="gProfiles" class="grid"></div></div>
+    <div class="card"><h2>Days to get paid, by client type</h2><div class="sub">Client type is hidden from the model.</div>
+      <div id="gSeg" class="grid"></div></div>
+  </section>
 </main>
+<footer>Hackathon prototype built on the PayPal Invoicing API (sandbox) for the PayPal AI Hackathon 2026. Not a PayPal product. Decisions: contextual bandit (linear Thompson sampling). Language: Claude.</footer>
 
 <script>
-const C = { bandit: '#E60023', llm_wrapper: '#0d9488', fixed_schedule: '#64748b', llm_wrapper_frequent: '#0a3069' };
+const C = { bandit: '#0070E0', llm_wrapper: '#003087', fixed_schedule: '#9AA4B2', llm_wrapper_frequent: '#5B6B82' };
+const NAME = { bandit: 'Smart Reminders', llm_wrapper: 'LLM wrapper', fixed_schedule: 'Fixed schedule', llm_wrapper_frequent: 'LLM wrapper, every 3 days' };
+const AV = ['#003087', '#0070E0', '#017A3B', '#8A5A00', '#5B2A86', '#0B6E79'];
 let LABELS = {};
 const $ = (id) => document.getElementById(id);
-const theme = agGrid.themeQuartz.withParams({ fontSize: 11, headerFontSize: 11, rowHeight: 28, headerHeight: 30,
-  accentColor: '#0a3069', spacing: 5 });
+const money = (v) => '$' + Math.round(v).toLocaleString('en-US');
+const theme = agGrid.themeQuartz.withParams({ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, headerFontSize: 12,
+  rowHeight: 40, headerHeight: 40, accentColor: '#0070E0', borderColor: '#e3e7ee', headerBackgroundColor: '#F7F9FC',
+  foregroundColor: '#2c2e2f', headerTextColor: '#6c7378', wrapperBorderRadius: 16, spacing: 6 });
 
 function grid(el, columnDefs, extra = {}) {
   return agGrid.createGrid($(el), { theme, columnDefs, rowData: [],
@@ -102,16 +195,17 @@ function grid(el, columnDefs, extra = {}) {
 const heat = (p) => {
   const v = p.value; if (v == null) return null;
   const a = Math.max(0, Math.min(1, v / 0.6));
-  return { backgroundColor: `rgba(230,0,35,${(a * 0.55).toFixed(2)})`, fontWeight: p.data.best_action === p.colDef.field ? 700 : 400 };
+  return { backgroundColor: `rgba(0,112,224,${(a * 0.6).toFixed(2)})`, color: a > 0.6 ? '#fff' : '#001435',
+           fontWeight: p.data.best_action === p.colDef.field ? 800 : 500 };
 };
 const SHORT = { wait: 'Wait', friendly: 'Friendly', short_link: '1-tap link', include_po: 'PO resend', late_fee: 'Late fee' };
 const actionCols = () => ['wait', 'friendly', 'short_link', 'include_po', 'late_fee'].map(a => ({
-  field: a, headerName: SHORT[a], cellStyle: heat, minWidth: 90,
+  field: a, headerName: SHORT[a], cellStyle: heat, minWidth: 66,
   headerTooltip: LABELS[a], valueFormatter: p => p.value == null ? '' : p.value.toFixed(2),
   tooltipValueGetter: p => p.data ? `90% interval ${p.data[a + '_lo'].toFixed(2)} to ${p.data[a + '_hi'].toFixed(2)}` : ''
 }));
 
-let gProfiles, gSeg, gLive, gLog, chart;
+let gProfiles, gSeg, gLog, chart;
 
 async function api(path, method = 'GET', body) {
   const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -126,50 +220,63 @@ function drawChart(r) {
     return row;
   });
   const last = r.weeks[r.weeks.length - 1];
-  const order = ['fixed_schedule', 'llm_wrapper', 'bandit'];
-  const series = order.map(k => ({
-    type: 'line', xKey: 'week', yKey: k, yName: r.kpis[k].label,
-    stroke: C[k], strokeWidth: k === 'bandit' ? 3.5 : 2, lineDash: k === 'llm_wrapper_frequent' ? [5, 4] : undefined,
-    marker: { enabled: false },
-    label: { enabled: true, fontSize: 11, fontWeight: 700, color: C[k], placement: 'right',
+  const series = ['fixed_schedule', 'llm_wrapper', 'bandit'].map(k => ({
+    type: 'line', xKey: 'week', yKey: k, yName: NAME[k],
+    stroke: C[k], strokeWidth: k === 'bandit' ? 4 : 2.5, marker: { enabled: false },
+    label: { enabled: true, fontSize: 13, fontWeight: 800, color: C[k], placement: 'right',
              formatter: ({ datum }) => datum.week === last ? `${datum[k].toFixed(1)}d` : '' },
   }));
-  const opts = { container: $('chart'), data, series, background: { fill: 'white' },
-    padding: { right: 48 },
-    axes: { x: { type: 'number', position: 'bottom', max: last, title: { text: 'Invoice week', fontSize: 11 }, label: { fontSize: 10 } },
-            y: { type: 'number', position: 'left', title: { text: 'Mean days to paid (unpaid counts as 60)', fontSize: 11 },
-                 label: { fontSize: 10 }, min: 0 } },
-    legend: { position: 'top', item: { label: { fontSize: 11 } } } };
+  const opts = { container: $('chart'), data, series, background: { fill: 'white' }, padding: { right: 56 },
+    axes: { x: { type: 'number', position: 'bottom', max: last, title: { text: 'Invoice week', fontSize: 12 }, label: { fontSize: 11 } },
+            y: { type: 'number', position: 'left', title: { text: 'Avg. days to get paid', fontSize: 12 }, label: { fontSize: 11 }, min: 0 } },
+    legend: { position: 'top', item: { label: { fontSize: 13 } } } };
   if (chart) chart.update(opts); else chart = agCharts.AgCharts.create(opts);
 }
 
 function drawKpis(k) {
   const b = k.bandit, w = k.llm_wrapper, f = k.fixed_schedule;
-  $('k1').textContent = b.mean_days_to_paid.toFixed(1);
-  $('k1b').innerHTML = `LLM wrapper <b>${w.mean_days_to_paid}</b> · Fixed <b>${f.mean_days_to_paid}</b>`;
+  $('k1').innerHTML = `${b.mean_days_to_paid.toFixed(1)}<small>days</small>`;
+  $('k1b').innerHTML = `LLM wrapper <b>${w.mean_days_to_paid}</b> · Fixed schedule <b>${f.mean_days_to_paid}</b>`;
   $('k2').textContent = b.paid_within_30d_pct.toFixed(1) + '%';
   $('k2b').innerHTML = `LLM wrapper <b>${w.paid_within_30d_pct}%</b> · Fixed <b>${f.paid_within_30d_pct}%</b>`;
   $('k3').textContent = b.unpaid_at_60d_pct.toFixed(1) + '%';
   $('k3b').innerHTML = `LLM wrapper <b>${w.unpaid_at_60d_pct}%</b> · Fixed <b>${f.unpaid_at_60d_pct}%</b>`;
   $('k4').textContent = b.reminders_per_invoice.toFixed(1);
-  $('k4b').innerHTML = `Wrapper every 3 days <b>${k.llm_wrapper_frequent.reminders_per_invoice}</b> for <b>${k.llm_wrapper_frequent.mean_days_to_paid}</b> days`;
+  $('k4b').innerHTML = `Same as LLM wrapper <b>${w.reminders_per_invoice}</b>`;
 }
 
 async function runSim() {
-  $('runSim').disabled = true; $('simMsg').textContent = 'Running...';
+  $('runSim').disabled = true; $('simMsg').textContent = 'Running…';
   try {
     const r = await api('/api/simulate', 'POST', { weeks: +$('weeks').value, per_week: +$('perWeek').value, seed: +$('seed').value });
     drawKpis(r.kpis); drawChart(r);
     gProfiles.setGridOption('rowData', r.profiles);
     gSeg.setGridOption('rowData', r.days_by_segment);
-    $('simMsg').textContent = `${r.n_invoices} simulated invoices, same invoices for every policy.`;
+    $('simMsg').textContent = `${r.n_invoices} simulated invoices, same invoices for every method.`;
   } catch (e) { $('simMsg').innerHTML = `<span class="err">${e.message}</span>`; }
   $('runSim').disabled = false;
 }
 
 function drawLive(v) {
-  gLive.setGridOption('rowData', v.invoices);
-  gLog.setGridOption('rowData', [...v.log].reverse());
+  const list = $('gLive');
+  list.innerHTML = v.invoices.map((i, n) => {
+    const ini = i.client.slice(0, 1) + (i.company ? i.company.slice(0, 1) : '');
+    const st = i.paypal_status === 'MARKED_AS_PAID' ? 'PAID' : i.paypal_status;
+    const due = i.paid_day != null ? `Paid on day ${i.paid_day}` : (i.days_overdue ? `${i.days_overdue} days overdue` : 'Due today');
+    const act = i.last_action ? `<span class="chip ${i.last_action === 'Wait' ? 'wait' : ''}">${i.last_action === 'Wait' ? 'Paused: backing off' : i.last_action}</span>` : '<span class="chip wait">Not started</span>';
+    return `<div class="item">
+      <div class="ini" style="background:${AV[n % AV.length]}">${ini}</div>
+      <div class="who"><b>${i.client}${i.company ? ' · ' + i.company : ''}</b><span>${i.paypal_id}</span></div>
+      <div class="meta"><b>${due}</b><span>${i.reminders} reminder${i.reminders === 1 ? '' : 's'} · reason: ${i.llm_reason}</span></div>
+      <div class="act">${act}</div>
+      <div class="amt">${money(i.amount)}</div>
+      <div class="st"><span class="pill ${i.paypal_status}">${st}</span></div></div>`;
+  }).join('');
+  gLog.setGridOption('rowData', v.log.filter(l => l.action !== 'Wait').reverse());
+  const total = v.invoices.reduce((a, i) => a + i.amount, 0);
+  const got = v.invoices.filter(i => i.paid_day != null).reduce((a, i) => a + i.amount, 0);
+  $('collected').textContent = money(got);
+  $('collectedOf').textContent = `collected of ${money(total)}`;
   const paid = v.invoices.filter(i => i.paid_day != null).length;
   $('liveMsg').textContent = `Day ${v.epoch * 3} · ${paid}/${v.invoices.length} paid · ${v.paypal_calls} PayPal API calls (${v.mode})`;
 }
@@ -188,33 +295,22 @@ async function live(path) {
 (async function init() {
   const s = await api('/api/status');
   LABELS = s.action_labels;
-  $('ppMode').textContent = `PayPal: ${s.paypal_mode}`;
-  $('llmMode').textContent = `LLM: ${s.llm_provider}`;
-  gProfiles = grid('gProfiles', [{ field: 'profile', headerName: 'Invoice context', minWidth: 190, flex: 2, tooltipField: 'profile' }, ...actionCols()],
+  $('ppMode').textContent = s.paypal_mode === 'sandbox' ? 'PayPal sandbox' : 'PayPal mock';
+  $('llmMode').textContent = s.llm_provider === 'anthropic' ? 'Claude' : 'LLM: ' + s.llm_provider;
+  gProfiles = grid('gProfiles', [{ field: 'profile', headerName: 'Invoice context', minWidth: 150, flex: 1.7, tooltipField: 'profile' }, ...actionCols()],
                    { tooltipShowDelay: 200 });
   gSeg = grid('gSeg', [
-    { field: 'segment', headerName: 'Client type (hidden from bandit)', minWidth: 190, flex: 2 },
+    { field: 'segment', headerName: 'Client type', minWidth: 170, flex: 2 },
     { field: 'fixed_schedule', headerName: 'Fixed' }, { field: 'llm_wrapper', headerName: 'LLM wrapper' },
-    { field: 'llm_wrapper_frequent', headerName: 'Wrapper, 3-day' },
-    { field: 'bandit', headerName: 'Bandit', cellStyle: { color: '#E60023', fontWeight: 700 } }]);
-  gLive = grid('gLive', [
-    { field: 'paypal_id', headerName: 'PayPal invoice', minWidth: 150 }, { field: 'client' }, { field: 'company' },
-    { field: 'segment_hidden', headerName: 'Hidden type', minWidth: 140 },
-    { field: 'amount', valueFormatter: p => '$' + p.value.toLocaleString() },
-    { field: 'days_overdue', headerName: 'Days late' }, { field: 'reminders' },
-    { field: 'llm_reason', headerName: 'LLM: why late' },
-    { field: 'last_action', headerName: 'Last action', minWidth: 190, flex: 2 },
-    { field: 'paypal_status', headerName: 'PayPal status', minWidth: 130,
-      cellRenderer: p => `<span class="pill ${p.value}">${p.value === 'MARKED_AS_PAID' ? 'PAID' : p.value}</span>`,
-      tooltipField: 'paypal_status' }]);
+    { field: 'bandit', headerName: 'Smart Reminders', minWidth: 130, cellStyle: { color: '#0070E0', fontWeight: 800 } }]);
   gLog = grid('gLog', [
-    { field: 'day', headerName: 'Day', maxWidth: 70 }, { field: 'client', maxWidth: 90 },
-    { field: 'action', minWidth: 170 }, { field: 'subject', minWidth: 200, flex: 2 },
-    { field: 'note', minWidth: 320, flex: 4, tooltipField: 'note' }, { field: 'writer', maxWidth: 80 },
+    { field: 'day', headerName: 'Day', maxWidth: 70 }, { field: 'client', maxWidth: 100 },
+    { field: 'action', headerName: 'Reminder', minWidth: 190 }, { field: 'subject', minWidth: 220, flex: 2 },
+    { field: 'note', headerName: 'Message (Claude)', minWidth: 320, flex: 4, tooltipField: 'note' },
     { field: 'reply', headerName: 'Client reply', minWidth: 220, flex: 2, tooltipField: 'reply' },
-    { field: 'reason', headerName: 'LLM label', maxWidth: 100 },
-    { field: 'paid', maxWidth: 70, cellDataType: false, cellRenderer: p => p.value ? '<b style="color:#0d9488">Paid</b>' : '' }],
-    { tooltipShowDelay: 200, getRowStyle: p => p.data.paid ? { background: '#f0fdfa' } : null });
+    { field: 'reason', headerName: 'Label', maxWidth: 110 },
+    { field: 'paid', maxWidth: 80, cellDataType: false, cellRenderer: p => p.value ? '<span class="pill PAID">PAID</span>' : '' }],
+    { tooltipShowDelay: 200, getRowStyle: p => p.data.paid ? { background: '#F2FAF5' } : null });
   $('runSim').onclick = runSim;
   $('liveStart').onclick = () => live('/api/live/start');
   $('liveStep').onclick = () => live('/api/live/step');
