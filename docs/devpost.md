@@ -2,7 +2,7 @@
 
 **Project name:** Smart Invoice Reminders for PayPal
 
-**Tagline:** An invoice reminder agent that learns which reminder gets each client to pay.
+**Tagline:** A contextual bandit (linear Thompson sampling) that learns which PayPal invoice reminder gets each client to pay. Claude reads replies and writes the reminders; the statistical model decides.
 
 ## Inspiration
 
@@ -13,6 +13,10 @@ Freelancers and small businesses send invoices through PayPal, and a large share
 The app treats each reminder as a decision and learns from outcomes. Every 3 days, for each unpaid PayPal invoice, it picks one of five actions: wait, a friendly email, a two-line note with a 1-tap PayPal link, a resend with the PO and billing details, or a firm note citing the contract late fee. Claude writes the reminder in that style and the app sends it through the PayPal Invoicing API `/remind` endpoint. When the client pays, the payment is recorded in PayPal and the model updates.
 
 In a simulation of 520 invoices, identical for every policy, the learning agent got invoices paid in 12.8 days on average, compared with 25.3 days for an LLM wrapper that reads client replies but uses a fixed schedule, and 31.6 days for a plain fixed schedule. It sent the same number of reminders as the LLM wrapper (2.7 per invoice). Reminding every 3 days does not close the gap: that policy sent 8.6 reminders per invoice and still took 24.2 days.
+
+## Why this is not an LLM wrapper
+
+The decision of which reminder to send, and when, is made by a statistical model, not a prompt. Claude does two language jobs: it labels why a client is late from their reply, and it writes the reminder in the style the model chose. A prompt makes the same choice every time. The bandit keeps a posterior over the expected payoff of each reminder type for each kind of invoice, updates it after every payment, and explores options it is unsure about. In the simulation, an LLM wrapper that reads replies but uses a fixed schedule averaged 25.3 days to payment; the bandit averaged 12.8 days with the same number of reminders.
 
 ## How we built it
 
