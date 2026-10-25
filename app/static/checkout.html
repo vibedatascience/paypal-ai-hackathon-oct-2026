@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-Optimizing Checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="/static/vendor/ag-grid-community.min.js"></script>
+<script src="/static/vendor/ag-charts-community.min.js"></script>
+<style>
+  :root { --blue:#0070E0; --deep:#003087; --ink:#001435; --text:#2c2e2f; --muted:#6c7378; --bg:#F1F4F8; --line:#e3e7ee;
+          --soft:#EAF3FD; --green:#017A3B; --greenbg:#E6F4EC; --amber:#8A5A00; --amberbg:#FFF4D6; --red:#C4252C; --redbg:#FDECEC; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 Inter, ui-sans-serif, system-ui, sans-serif; }
+  a { color:inherit; text-decoration:none; }
+  .top { background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  .top .in { max-width:1320px; margin:0 auto; padding:0 24px; height:68px; display:flex; align-items:center; gap:28px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; color:var(--ink); font-size:17px; }
+  .brand i { width:34px; height:34px; border-radius:10px; background:var(--deep); display:grid; place-items:center; color:#fff; font-style:normal; font-size:15px; }
+  .nav { display:flex; gap:22px; font-weight:600; color:var(--muted); }
+  .nav .on { color:var(--ink); box-shadow:inset 0 -3px 0 var(--blue); padding-bottom:22px; margin-bottom:-22px; }
+  .right { margin-left:auto; display:flex; gap:10px; align-items:center; }
+  .env { font-size:12px; font-weight:700; padding:5px 11px; border-radius:99px; background:var(--soft); color:var(--deep); }
+  .avatar { width:38px; height:38px; border-radius:50%; background:var(--deep); color:#fff; display:grid; place-items:center; font-weight:700; font-size:14px; }
+  main { max-width:1320px; margin:0 auto; padding:28px 24px 40px; display:grid; gap:20px; }
+  h1 { font-size:40px; font-weight:800; color:var(--ink); margin:0; letter-spacing:-.6px; }
+  .card { background:#fff; border-radius:24px; padding:24px 26px; }
+  .card h2 { margin:0 0 4px; font-size:20px; font-weight:800; color:var(--ink); }
+  .sub { color:var(--muted); font-size:14px; }
+  .hero { background:linear-gradient(100deg, var(--deep), #0059B8 70%, var(--blue)); color:#fff; display:flex; gap:22px; align-items:center; }
+  .hero .ic { width:64px; height:64px; border-radius:18px; background:rgba(255,255,255,.14); display:grid; place-items:center; font-size:30px; }
+  .hero h2 { color:#fff; font-size:26px; } .hero .sub { color:rgba(255,255,255,.88); font-size:16px; }
+  .steps { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .step { background:#fff; border-radius:20px; padding:18px 20px; border:3px solid transparent; transition:all .25s; }
+  .step .n { display:flex; align-items:center; gap:10px; font-size:22px; font-weight:800; color:var(--ink); }
+  .step .n span { font-size:26px; }
+  .step p { margin:6px 0 0; color:var(--muted); font-size:14px; }
+  .step.on { border-color:var(--blue); box-shadow:0 0 0 6px rgba(0,112,224,.10); }
+  .step.on .n { color:var(--blue); }
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { font:inherit; font-weight:700; border:0; border-radius:99px; padding:11px 22px; cursor:pointer; background:var(--blue); color:#fff; }
+  button.alt { background:#fff; color:var(--blue); box-shadow:inset 0 0 0 2px var(--blue); }
+  button.ghost { background:transparent; color:var(--muted); }
+  button:disabled { opacity:.45; cursor:default; }
+  .status { color:var(--muted); font-size:14px; margin-left:6px; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  .kpi .l { font-size:15px; font-weight:500; }
+  .kpi .v { font-size:44px; font-weight:800; color:var(--ink); letter-spacing:-1.2px; margin-top:16px; line-height:1; }
+  .kpi .b { color:var(--muted); font-size:13px; margin-top:10px; }
+  .delta { display:inline-block; font-size:13px; font-weight:800; padding:3px 10px; border-radius:99px; background:var(--greenbg); color:var(--green); margin-left:6px; }
+  .delta.neg { background:var(--redbg); color:var(--red); }
+  .split { display:grid; grid-template-columns:1.25fr 1fr; gap:20px; align-items:start; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 16px; }
+  .chip { font-size:13px; font-weight:700; padding:7px 12px; border-radius:99px; background:#f1f3f6; color:var(--muted); cursor:pointer; border:0; }
+  .chip.on { background:var(--ink); color:#fff; }
+  .chip .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--blue); margin-left:6px; vertical-align:1px; }
+  .previews { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .pv h3 { margin:0 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); display:flex; justify-content:space-between; }
+  .pv h3 b { color:var(--ink); font-size:16px; letter-spacing:0; text-transform:none; }
+  .pv.now h3 { color:var(--blue); }
+  .lay { font-size:13px; color:var(--muted); height:20px; margin:-4px 0 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pv.now .lay { color:var(--blue); font-weight:700; }
+  .frame { border:1px solid var(--line); border-radius:22px; padding:18px; background:#fff; min-height:380px; transition:box-shadow .4s; }
+  .frame.mobile { max-width:330px; margin:0 auto; border:10px solid #111827; border-radius:34px; }
+  .frame.flash { box-shadow:0 0 0 6px rgba(0,112,224,.35); }
+  .shop { display:flex; justify-content:space-between; font-weight:700; color:var(--ink); }
+  .shop small { display:block; font-weight:500; color:var(--muted); font-size:12px; }
+  .total { font-size:22px; font-weight:800; color:var(--ink); }
+  .headline { margin:14px 0 10px; font-weight:700; color:var(--ink); }
+  .msg { margin:6px 0 10px; min-height:20px; }
+  .btns > div { margin-bottom:8px; min-height:44px; }
+  .ph { height:44px; border-radius:6px; display:grid; place-items:center; font-weight:700; font-size:14px; border:1px solid var(--line); color:var(--muted); background:#f7f8fa; }
+  .rate { margin-top:10px; font-size:13px; color:var(--muted); text-align:center; }
+  .rate b { color:var(--ink); font-size:18px; }
+  .ideas { display:grid; gap:12px; max-height:820px; overflow:auto; padding-right:4px; }
+  .idea { border:1px solid var(--line); border-radius:18px; padding:14px 16px; }
+  .idea .t { display:flex; justify-content:space-between; gap:10px; align-items:center; font-weight:800; color:var(--ink); }
+  .src { font-size:11px; font-weight:800; padding:3px 9px; border-radius:99px; background:var(--soft); color:var(--deep); white-space:nowrap; }
+  .hyp { color:var(--text); font-size:14px; margin:6px 0 8px; }
+  .cfg { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .cfg span { font-size:12px; font-weight:700; padding:3px 9px; border-radius:8px; background:#f1f3f6; color:var(--ink); }
+  .segrow { display:grid; grid-template-columns:1fr 92px 120px; gap:8px; align-items:center; font-size:13px; padding:6px 0; border-top:1px solid var(--line); }
+  .pill { font-size:11px; font-weight:800; padding:4px 10px; border-radius:99px; text-align:center; letter-spacing:.3px; }
+  .pill.testing { background:var(--amberbg); color:var(--amber); }
+  .pill.kept { background:var(--greenbg); color:var(--green); }
+  .pill.stopped, .pill.retired { background:var(--redbg); color:var(--red); }
+  .pill.nowin { background:#eef0f3; color:var(--muted); }
+  .cmp { font-weight:700; color:var(--ink); text-align:right; }
+  .cmp small { color:var(--muted); font-weight:500; }
+  .log { display:grid; gap:10px; }
+  .ch { display:grid; grid-template-columns:34px 1fr; gap:10px; padding:10px 0; border-top:1px solid var(--line); }
+  .ch:first-child { border-top:0; }
+  .ch .i { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-weight:800; color:#fff; }
+  .ch .i.k { background:var(--green); } .ch .i.s { background:var(--red); } .ch .i.n { background:#9aa4b2; }
+  .ch b { color:var(--ink); }
+  .ch .h { color:var(--muted); font-size:13px; }
+  #chart { height:320px; }
+  .grid { height:300px; margin-top:12px; }
+  .funnel { display:grid; gap:8px; margin-top:10px; }
+  .fr { display:grid; grid-template-columns:150px 1fr 70px; gap:10px; align-items:center; font-size:13px; }
+  .fb { height:18px; border-radius:6px; background:#eef2f7; position:relative; overflow:hidden; }
+  .fb i { position:absolute; left:0; top:0; bottom:0; background:var(--blue); border-radius:6px; }
+  .fb i.d { background:#9AC3F0; }
+  .toast { position:fixed; right:24px; bottom:24px; background:var(--ink); color:#fff; padding:14px 18px; border-radius:14px; font-weight:600; display:none; z-index:20; }
+  footer { max-width:1320px; margin:0 auto; padding:0 24px 30px; color:var(--muted); font-size:12px; }
+  @media (max-width:1000px) { .steps,.kpis { grid-template-columns:1fr 1fr; } .split,.previews { grid-template-columns:1fr; } .nav { display:none; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="brand"><i>SR</i>Business</div>
+  <div class="nav"><a href="/">Invoicing</a><span class="on">Checkout</span><span>Activity</span><span>Reports</span></div>
+  <div class="right"><span class="env" id="ppMode">PayPal</span><span class="env" id="llmMode">Claude</span><div class="avatar">NS</div></div>
+</div></div>
+
+<main>
+  <h1>Checkout</h1>
+
+  <section class="card hero">
+    <div class="ic">⟳</div>
+    <div><h2>Self-Optimizing Checkout</h2>
+      <div class="sub">Your checkout tries new layouts on its own and keeps the ones more shoppers pay with.</div></div>
+  </section>
+
+  <section class="steps">
+    <div class="step" id="st1"><div class="n"><span>👀</span>1. Watch</div><p>Log every checkout: which button, and where shoppers give up.</p></div>
+    <div class="step" id="st2"><div class="n"><span>💡</span>2. Suggest</div><p>Claude reads the drop-offs and proposes a new layout.</p></div>
+    <div class="step" id="st3"><div class="n"><span>🧪</span>3. Test</div><p>Some shoppers see the new layout. What works gets more shoppers.</p></div>
+    <div class="step" id="st4"><div class="n"><span>✅</span>4. Keep</div><p>Clear winners become the new default. Losers are switched off.</p></div>
+  </section>
+
+  <section class="card bar">
+    <button id="bAuto">▶ Run the loop (3 rounds)</button>
+    <button class="alt" id="b1">1 · Watch</button>
+    <button class="alt" id="b2">2 · Suggest</button>
+    <button class="alt" id="b3">3 · Test + keep</button>
+    <select id="goal" title="What counts as a win" style="font:inherit;font-weight:700;padding:10px 14px;border-radius:99px;border:2px solid #e3e7ee;color:#001435;background:#fff">
+      <option value="orders">Goal: more orders</option><option value="branded">Goal: more PayPal checkouts</option></select>
+    <button class="ghost" id="bReset">Reset</button>
+    <span class="status" id="status">Simulated shoppers · real PayPal buttons and sandbox orders in the preview</span>
+  </section>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="l">Shoppers who paid</div><div class="v" id="k1">–</div><div class="b" id="k1b">Start with “Run the loop”</div></div>
+    <div class="card kpi"><div class="l">Paid with PayPal, Venmo or Pay Later</div><div class="v" id="k2">–</div><div class="b" id="k2b"></div></div>
+    <div class="card kpi"><div class="l">Extra orders per 10,000 shoppers</div><div class="v" id="k3">–</div><div class="b">vs. keeping the original layout</div></div>
+    <div class="card kpi"><div class="l">Ideas tested</div><div class="v" id="k4">–</div><div class="b" id="k4b"></div></div>
+  </section>
+
+  <section class="split">
+    <div class="card">
+      <h2>What shoppers see</h2>
+      <div class="sub">Pick a type of shopper. Left: the original checkout. Right: what this shopper sees now. A dot marks shoppers whose checkout changed.</div>
+      <div class="chips" id="chips"></div>
+      <div class="previews">
+        <div class="pv"><h3>Original <b id="rOrig"></b></h3><div class="lay">PayPal's default button stack</div><div class="frame" id="pvOrig"></div></div>
+        <div class="pv now"><h3>Now <b id="rNow"></b></h3><div class="lay" id="lNow"></div><div class="frame" id="pvNow"></div></div>
+      </div>
+      <h2 style="margin-top:22px;font-size:17px">Where this shopper type drops off today</h2>
+      <div class="funnel" id="funnel"><div class="sub">Run “Watch” to see the funnel.</div></div>
+    </div>
+    <div class="card">
+      <h2>Experiments</h2>
+      <div class="sub">Every idea Claude proposed, and what the test decided for each type of shopper.</div>
+      <div class="ideas" id="ideas" style="margin-top:12px"><div class="sub">No ideas yet.</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Shoppers who paid, over time</h2>
+    <div class="sub">Expected share of shoppers who complete checkout: the self-optimizing checkout vs. keeping the original layout, on the same shoppers.</div>
+    <div id="chart"></div>
+  </section>
+
+  <section class="split">
+    <div class="card"><h2>What changed and why</h2><div class="sub">Plain-English record of every decision.</div>
+      <div class="log" id="changes" style="margin-top:10px"><div class="sub">Nothing yet.</div></div></div>
+    <div class="card"><h2>Session log</h2><div class="sub">The raw events the system learns from (latest first). Real sandbox orders from the preview appear below.</div>
+      <div id="gLog" class="grid"></div>
+      <div id="orders" class="sub" style="margin-top:10px"></div></div>
+  </section>
+</main>
+<footer>Hackathon prototype for the PayPal AI Hackathon 2026. Not a PayPal product. Shoppers in the experiment are simulated with hidden preferences; the preview uses real PayPal JavaScript SDK buttons and creates real PayPal sandbox orders. Ideas: Claude. Decisions: Thompson sampling with stop and keep rules.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const LBL = { paypal: 'PayPal', venmo: 'Venmo', paylater: 'Pay Later', card: 'Debit or credit card' };
+const MSG = { none: 'No Pay in 4 message', above: 'Pay in 4 message above buttons', below: 'Pay in 4 message under total' };
+let CFG = null, ST = null, SEL = 'mobile|big|new', SDK = false, busy = false, chart = null, gLog = null;
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch('/checkout/api' + path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function stepOn(n) { [1, 2, 3, 4].forEach(i => $('st' + i).classList.toggle('on', i === n)); }
+function toast(t) { const e = $('toast'); e.textContent = t; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 4500); }
+function setBusy(b) { busy = b; ['bAuto', 'b1', 'b2', 'b3', 'bReset', 'goal'].forEach(i => $(i).disabled = b); }
+const WIN = () => ST && ST.kpi.goal === 'branded' ? 'paid with PayPal' : 'paid';
+
+function loadSDK(cid) {
+  return new Promise(res => {
+    if (!cid) return res(false);
+    const s = document.createElement('script');
+    s.src = `https://www.paypal.com/sdk/js?client-id=${cid}&components=buttons,messages&enable-funding=venmo,paylater,card&currency=USD&buyer-country=US`;
+    s.onload = () => res(true); s.onerror = () => res(false);
+    document.head.appendChild(s);
+  });
+}
+
+const AMOUNT = { small: 64.0, big: 480.0 };
+function renderPreview(el, cfg, seg, layoutName) {
+  const [device, cart] = seg.split('|');
+  const amt = AMOUNT[cart];
+  el.className = 'frame' + (device === 'mobile' ? ' mobile' : '');
+  el.innerHTML = `<div class="shop"><div>Northside Studio<small>${cart === 'big' ? 'Desk lamp + chair' : 'Notebook set'}</small></div><div class="total">$${amt.toFixed(2)}</div></div>
+    <div class="msg" data-m="top"></div><div class="headline">${cfg.headline || ''}</div><div class="btns"></div><div class="msg" data-m="bottom"></div>`;
+  const btns = el.querySelector('.btns');
+  const msgEl = cfg.paylater_msg === 'above' ? el.querySelector('[data-m=top]') : cfg.paylater_msg === 'below' ? el.querySelector('[data-m=bottom]') : null;
+  const FUND = SDK ? { paypal: paypal.FUNDING.PAYPAL, venmo: paypal.FUNDING.VENMO, paylater: paypal.FUNDING.PAYLATER, card: paypal.FUNDING.CARD } : {};
+  cfg.order.forEach(m => {
+    const slot = document.createElement('div'); btns.appendChild(slot);
+    if (SDK) {
+      const b = paypal.Buttons({ fundingSource: FUND[m], style: { layout: 'vertical', shape: 'rect', height: 44 },
+        createOrder: async () => (await api('/orders', 'POST', { amount: amt, segment: seg, layout: layoutName })).id,
+        onApprove: async (d) => { const r = await api(`/orders/${d.orderID}/capture`, 'POST'); toast(`Sandbox order ${r.id}: ${r.status}`); refresh(); } });
+      if (b.isEligible()) { b.render(slot); return; }
+    }
+    slot.innerHTML = `<div class="ph">${LBL[m]}${m === 'venmo' ? ' (shows on phones)' : ''}</div>`;
+  });
+  if (msgEl) {
+    if (SDK && paypal.Messages) paypal.Messages({ amount: amt, placement: 'cart', style: { layout: 'text', text: { size: 12 } } }).render(msgEl);
+    else msgEl.innerHTML = `<div class="sub">Pay in 4 interest-free payments of $${(amt / 4).toFixed(2)}</div>`;
+  }
+}
+
+function drawChips() {
+  $('chips').innerHTML = ST.segments.map(s => `<button class="chip ${s.seg === SEL ? 'on' : ''}" data-s="${s.seg}">${s.label}${s.default !== 'v0' ? '<span class="dot"></span>' : ''}</button>`).join('');
+  [...$('chips').children].forEach(b => b.onclick = () => { SEL = b.dataset.s; drawSelected(true); drawChips(); });
+}
+
+let lastShown = {};
+function drawSelected(force) {
+  const s = ST.segments.find(x => x.seg === SEL);
+  const key = SEL + s.default;
+  if (force || lastShown.orig !== SEL) { renderPreview($('pvOrig'), s.original, SEL, 'Original layout'); lastShown.orig = SEL; }
+  if (force || lastShown.now !== key) {
+    renderPreview($('pvNow'), s.config, SEL, s.default_name);
+    if (lastShown.now && lastShown.now !== key) { $('pvNow').classList.add('flash'); setTimeout(() => $('pvNow').classList.remove('flash'), 1200); }
+    lastShown.now = key;
+  }
+  $('rOrig').textContent = s.n ? `${s.orig_rate}% ${WIN()}` : '';
+  $('rNow').textContent = s.n ? `${s.rate}% ${WIN()}` : '';
+  $('lNow').textContent = s.default === 'v0' ? 'Same as original (no winner yet)' : `Kept after test: “${s.default_name}”`;
+  drawFunnel();
+}
+
+function drawFunnel() {
+  const f = ST.funnels.length ? ST.funnels[ST.funnels.length - 1].by_segment[SEL] : null;
+  if (!f || !f.sessions) { $('funnel').innerHTML = '<div class="sub">Run “Watch” to see the funnel.</div>'; return; }
+  const rows = [`<div class="fr"><b>Left without clicking</b><div class="fb"><i style="width:${f.left_without_clicking_pct}%;background:#C4252C"></i></div><b>${f.left_without_clicking_pct}%</b></div>`];
+  Object.entries(f.methods).forEach(([m, v]) => {
+    const fin = (v.chosen_pct * v.completed_pct_of_chosen / 100).toFixed(1);
+    rows.push(`<div class="fr"><span>#${v.position} ${LBL[m]}</span><div class="fb"><i class="d" style="width:${v.chosen_pct}%"></i><i style="width:${fin}%"></i></div><span>${fin}% paid</span></div>`);
+  });
+  $('funnel').innerHTML = rows.join('') + `<div class="sub">Light bar: chose this option · dark bar: finished paying with it · ${f.sessions.toLocaleString()} shoppers on “${f.layout}”</div>`;
+}
+
+const STLBL = { testing: 'TESTING', kept: 'KEPT', stopped: 'STOPPED', retired: 'REPLACED', replaced: 'REPLACED', default: 'DEFAULT' };
+function drawIdeas() {
+  const vs = ST.variants.filter(v => v.vid !== 'v0').reverse();
+  if (!vs.length) { $('ideas').innerHTML = '<div class="sub">No ideas yet. Step 2 asks Claude for some.</div>'; return; }
+  $('ideas').innerHTML = vs.map(v => `<div class="idea"><div class="t">${v.name}<span class="src">${v.source === 'claude' ? 'Idea by Claude' : 'Rule-based idea'} · round ${v.round}</span></div>
+    <div class="hyp">“${v.hypothesis}”</div>
+    <div class="cfg"><span>${v.config.order.map(m => LBL[m]).join(' → ')}</span><span>${MSG[v.config.paylater_msg]}</span>${v.config.headline ? `<span>“${v.config.headline}”</span>` : ''}</div>
+    ${v.segments.map(s => {
+      const cls = s.status === 'stopped' && s.note.startsWith('No clear') ? 'nowin' : s.status;
+      const lab = s.status === 'stopped' && s.note.startsWith('No clear') ? 'NO CLEAR WIN' : STLBL[s.status] || s.status;
+      return `<div class="segrow" title="${s.note}"><span>${s.label}</span><span class="pill ${cls}">${lab}</span>
+        <span class="cmp">${s.n ? `${s.rate}% <small>vs ${s.orig_rate}% · ${s.n.toLocaleString()} shoppers</small>` : '<small>waiting</small>'}</span></div>`; }).join('')}
+  </div>`).join('');
+}
+
+function drawChanges() {
+  const c = ST.changelog;
+  if (!c.length) { $('changes').innerHTML = '<div class="sub">Nothing yet.</div>'; return; }
+  $('changes').innerHTML = c.slice(0, 30).map(x => {
+    const k = x.kind === 'kept' ? 'k' : x.kind === 'stopped' ? 's' : 'n';
+    const txt = x.kind === 'kept' ? `<b>${x.segment}</b> now see <b>“${x.variant}”</b>. ${WIN()[0].toUpperCase() + WIN().slice(1)}: ${x.old_pct}% → <b>${x.new_pct}%</b> (${x.n.toLocaleString()} shoppers tested).`
+      : x.kind === 'stopped' ? `<b>“${x.variant}”</b> switched off for <b>${x.segment}</b>: ${x.new_pct}% paid vs ${x.old_pct}% on the current layout.`
+      : `<b>“${x.variant}”</b> made no clear difference for <b>${x.segment}</b> (${x.new_pct}% vs ${x.old_pct}%), so the current layout stays.`;
+    return `<div class="ch"><div class="i ${k}">${k === 'k' ? '✓' : k === 's' ? '✕' : '='}</div><div>${txt}<div class="h">Round ${x.round} · Claude's reason: ${x.hypothesis}</div></div></div>`;
+  }).join('');
+}
+
+function drawKpis() {
+  const k = ST.kpi;
+  if (k.now == null) { ['k1', 'k2', 'k3', 'k4'].forEach(i => $(i).textContent = '–'); return; }
+  const d = (k.now - k.orig_now);
+  $('k1').innerHTML = `${k.now}%`;
+  $('k1b').innerHTML = `Original layout: ${k.orig_now}% <span class="delta ${d < 0 ? 'neg' : ''}">${d >= 0 ? '+' : ''}${d.toFixed(1)} pts</span>`;
+  const db = k.branded_now - k.branded_start;
+  $('k2').textContent = `${k.branded_now}%`;
+  $('k2b').innerHTML = `At start: ${k.branded_start}% <span class="delta ${db < 0 ? 'neg' : ''}">${db >= 0 ? '+' : ''}${db.toFixed(1)} pts</span>`;
+  $('k3').textContent = `+${Math.max(0, Math.round(d * 100)).toLocaleString()}`;
+  $('k4').textContent = k.ideas;
+  $('k4b').textContent = `${k.kept} kept · ${k.stopped} stopped or no clear win · ${k.sessions.toLocaleString()} shoppers so far`;
+}
+
+function drawChart() {
+  const data = ST.timeline.map(t => ({ x: t.session, served: t.served, original: t.original }));
+  const opts = { container: $('chart'), data, background: { fill: 'white' }, padding: { right: 60 },
+    series: [
+      { type: 'line', xKey: 'x', yKey: 'original', yName: 'Original layout', stroke: '#9AA4B2', strokeWidth: 2.5, marker: { enabled: false },
+        label: { enabled: true, fontSize: 13, fontWeight: 800, color: '#6c7378', placement: 'right', formatter: ({ datum }) => datum === data[data.length - 1] ? datum.original.toFixed(1) + '%' : '' } },
+      { type: 'line', xKey: 'x', yKey: 'served', yName: 'Self-optimizing checkout', stroke: '#0070E0', strokeWidth: 4, marker: { enabled: false },
+        label: { enabled: true, fontSize: 13, fontWeight: 800, color: '#0070E0', placement: 'right', formatter: ({ datum }) => datum === data[data.length - 1] ? datum.served.toFixed(1) + '%' : '' } }],
+    axes: { x: { type: 'number', position: 'bottom', min: 0, max: data.length ? data[data.length - 1].x : 1000, title: { text: 'Shoppers so far', fontSize: 12 }, label: { fontSize: 11 } },
+            y: { type: 'number', position: 'left', title: { text: 'Shoppers who paid (%)', fontSize: 12 }, label: { fontSize: 11 } } },
+    legend: { position: 'top', item: { label: { fontSize: 13 } } } };
+  if (chart) chart.update(opts); else chart = agCharts.AgCharts.create(opts);
+}
+
+function drawLog() {
+  gLog.setGridOption('rowData', ST.log);
+  const o = ST.real_orders || [];
+  $('orders').innerHTML = o.length ? '<b>Real PayPal sandbox orders from the preview:</b> ' + o.map(x => `${x.order_id} ($${x.amount}, ${x.status})`).join(' · ') : '';
+}
+
+function drawAll(force) { drawChips(); drawSelected(force); drawIdeas(); drawChanges(); drawKpis(); drawChart(); drawLog(); }
+async function refresh() { ST = await api('/state'); drawAll(); }
+
+async function watch(n = 2000) {
+  stepOn(1); $('status').textContent = 'Watching shoppers on the current layouts…';
+  for (let i = 0; i < 4; i++) { ST = await api('/run', 'POST', { sessions: n / 4, phase: 'baseline' }); drawAll(); await sleep(250); }
+}
+async function suggest() {
+  stepOn(2); $('status').textContent = 'Claude is reading the drop-offs and proposing layouts…';
+  ST = await api('/suggest', 'POST'); drawAll();
+  const s = ST.suggest; $('status').textContent = `${s.added.length} new idea${s.added.length === 1 ? '' : 's'} from ${s.source === 'claude' ? 'Claude' : 'the rule-based fallback'}.`;
+  await sleep(900);
+}
+async function test(n = 10000) {
+  stepOn(3);
+  for (let i = 0; i < 10; i++) {
+    ST = await api('/run', 'POST', { sessions: n / 10, phase: 'experiment' }); drawAll();
+    $('status').textContent = `Testing… ${((i + 1) * n / 10).toLocaleString()} of ${n.toLocaleString()} shoppers this round`;
+    await sleep(200);
+  }
+  stepOn(4); $('status').textContent = 'Deciding: keep clear winners, switch off the rest…';
+  const before = Object.fromEntries(ST.segments.map(s => [s.seg, s.default]));
+  ST = await api('/decide', 'POST');
+  const changed = ST.segments.find(s => s.default !== before[s.seg]);
+  if (changed) SEL = changed.seg;
+  drawAll(); await sleep(1200);
+}
+
+async function guard(fn) { if (busy) return; setBusy(true); try { await fn(); } catch (e) { $('status').innerHTML = `<span style="color:#C4252C">${e.message}</span>`; } setBusy(false); }
+$('b1').onclick = () => guard(() => watch());
+$('b2').onclick = () => guard(() => suggest());
+$('b3').onclick = () => guard(() => test());
+$('bReset').onclick = () => guard(async () => { ST = await api('/reset', 'POST', { goal: $('goal').value }); lastShown = {}; stepOn(0); drawAll(true); $('status').textContent = 'Reset.'; });
+$('goal').onchange = () => $('bReset').click();
+$('bAuto').onclick = () => guard(async () => {
+  if (!ST.timeline.length) await watch();
+  for (let r = 0; r < 3; r++) { await suggest(); await test(); }
+  stepOn(0); $('status').textContent = 'Done. Pick a shopper type to see what changed.';
+});
+
+(async function init() {
+  CFG = await api('/config');
+  $('ppMode').textContent = CFG.paypal_mode === 'sandbox' ? 'PayPal sandbox' : 'PayPal mock';
+  $('llmMode').textContent = CFG.llm === 'anthropic' ? 'Claude' : 'Ideas: ' + CFG.llm;
+  SDK = await loadSDK(CFG.client_id);
+  const theme = agGrid.themeQuartz.withParams({ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, headerFontSize: 12, rowHeight: 34,
+    headerHeight: 36, accentColor: '#0070E0', borderColor: '#e3e7ee', headerBackgroundColor: '#F7F9FC', wrapperBorderRadius: 14 });
+  gLog = agGrid.createGrid($('gLog'), { theme, rowData: [], defaultColDef: { resizable: true, flex: 1, minWidth: 70 },
+    columnDefs: [{ field: 'session', maxWidth: 90 }, { field: 'segment', minWidth: 210 }, { field: 'layout', minWidth: 170 },
+      { field: 'steps', minWidth: 260, flex: 2, tooltipField: 'steps' },
+      { field: 'paid', maxWidth: 80, cellDataType: false, cellRenderer: p => p.value ? '<b style="color:#017A3B">Paid</b>' : '<span style="color:#C4252C">Left</span>' }],
+    tooltipShowDelay: 200 });
+  ST = await api('/state'); $('goal').value = ST.kpi.goal || 'orders'; drawAll(true);
+})();
+</script>
+</body>
+</html>

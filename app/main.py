@@ -45,6 +45,16 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+from .checkout.api import router as checkout_router  # noqa: E402
+
+app.include_router(checkout_router, prefix="/checkout")
+
+
+@app.get("/checkout")
+def checkout_page():
+    return FileResponse(STATIC / "checkout.html")
+
+
 @app.get("/api/status")
 def status():
     lane = STATE["lane"]

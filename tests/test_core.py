@@ -39,3 +39,35 @@ def test_live_lane_mock_end_to_end(monkeypatch):
         v = c.post("/api/live/step").json()
     assert any(i["paypal_status"] == "MARKED_AS_PAID" for i in v["invoices"])
     assert any(r["action"] != "Wait" for r in v["log"])
+
+
+def test_checkout_loop_improves_and_validates(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from app.checkout import advisor, sim
+    from app.checkout.engine import Optimizer
+    o = Optimizer()
+    o.run(2000, "baseline")
+    for r in (1, 2):
+        o.round = r
+        advisor.propose(o)
+        o.run(8000, "experiment")
+        o.finalize()
+    k = o.state()["kpi"]
+    assert k["now"] > k["orig_now"] and k["kept"] >= 1
+    assert not sim.valid_config({"order": ["venmo", "paylater"], "paylater_msg": "none", "headline": ""})[0]
+
+
+def test_checkout_api_mock(monkeypatch):
+    monkeypatch.delenv("PAYPAL_CLIENT_ID", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    from app.checkout import api as capi
+    capi.S["pp"] = None
+    c = TestClient(app)
+    assert c.post("/checkout/api/reset", json={"goal": "branded"}).json()["kpi"]["goal"] == "branded"
+    c.post("/checkout/api/run", json={"sessions": 1000, "phase": "baseline"})
+    s = c.post("/checkout/api/suggest").json()
+    assert s["suggest"]["added"]
+    oid = c.post("/checkout/api/orders", json={"amount": 64}).json()["id"]
+    assert c.post(f"/checkout/api/orders/{oid}/capture").json()["status"] == "COMPLETED"
+    assert c.get("/checkout").status_code == 200

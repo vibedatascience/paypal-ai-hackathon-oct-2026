@@ -91,6 +91,16 @@ class PayPalSandbox:
     def get_invoice(self, invoice_id: str) -> dict:
         return self._req("GET", f"/v2/invoicing/invoices/{invoice_id}")
 
+    # Orders v2, used by the checkout page's PayPal buttons
+    def create_order(self, amount: float, description: str = "Order") -> dict:
+        return self._req("POST", "/v2/checkout/orders", {
+            "intent": "CAPTURE",
+            "purchase_units": [{"amount": {"currency_code": "USD", "value": f"{amount:.2f}"}, "description": description}],
+        })
+
+    def capture_order(self, order_id: str) -> dict:
+        return self._req("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+
 
 class PayPalMock:
     """Same interface, no network. Status values mirror PayPal's."""
@@ -128,6 +138,15 @@ class PayPalMock:
     def get_invoice(self, iid):
         self._log("GET", f"/v2/invoicing/invoices/{iid}")
         return {"id": iid, "status": self.store[iid]["status"]}
+
+    def create_order(self, amount, description="Order"):
+        oid = f"MOCK-ORDER-{next(self._seq):04d}"
+        self._log("POST", "/v2/checkout/orders")
+        return {"id": oid, "status": "CREATED"}
+
+    def capture_order(self, oid):
+        self._log("POST", f"/v2/checkout/orders/{oid}/capture")
+        return {"id": oid, "status": "COMPLETED"}
 
 
 def client():
