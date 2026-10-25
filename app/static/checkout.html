@@ -277,8 +277,9 @@ function drawIdeas() {
     <div class="hyp">“${v.hypothesis}”</div>
     <div class="cfg"><span>${v.config.order.map(m => LBL[m]).join(' → ')}</span><span>${MSG[v.config.paylater_msg]}</span>${v.config.headline ? `<span>“${v.config.headline}”</span>` : ''}</div>
     ${v.segments.map(s => {
-      const cls = s.status === 'stopped' && s.note.startsWith('No clear') ? 'nowin' : s.status;
-      const lab = s.status === 'stopped' && s.note.startsWith('No clear') ? 'NO CLEAR WIN' : STLBL[s.status] || s.status;
+      const soft = s.status === 'stopped' && (s.note.startsWith('No clear') || s.note.startsWith('Beaten'));
+      const cls = soft ? 'nowin' : s.status;
+      const lab = soft ? (s.note.startsWith('Beaten') ? 'BEATEN' : 'NO CLEAR WIN') : STLBL[s.status] || s.status;
       return `<div class="segrow" title="${s.note}"><span>${s.label}</span><span class="pill ${cls}">${lab}</span>
         <span class="cmp">${s.n ? `${s.rate}% <small>vs ${s.orig_rate}% · ${s.n.toLocaleString()} shoppers</small>` : '<small>waiting</small>'}</span></div>`; }).join('')}
   </div>`).join('');
@@ -288,9 +289,10 @@ function drawChanges() {
   const c = ST.changelog;
   if (!c.length) { $('changes').innerHTML = '<div class="sub">Nothing yet.</div>'; return; }
   $('changes').innerHTML = c.slice(0, 30).map(x => {
-    const k = x.kind === 'kept' ? 'k' : x.kind === 'stopped' ? 's' : 'n';
+    const k = x.kind === 'kept' ? 'k' : x.kind === 'stopped' ? 's' : 'n';  // lost and no_win are neutral
     const txt = x.kind === 'kept' ? `<b>${x.segment}</b> now see <b>“${x.variant}”</b>. ${WIN()[0].toUpperCase() + WIN().slice(1)}: ${x.old_pct}% → <b>${x.new_pct}%</b> (${x.n.toLocaleString()} shoppers tested).`
       : x.kind === 'stopped' ? `<b>“${x.variant}”</b> switched off for <b>${x.segment}</b>: ${x.new_pct}% paid vs ${x.old_pct}% on the current layout.`
+      : x.kind === 'lost' ? `<b>“${x.variant}”</b> helped <b>${x.segment}</b> a little (${x.new_pct}% vs ${x.old_pct}%) but another idea in the same test did better.`
       : `<b>“${x.variant}”</b> made no clear difference for <b>${x.segment}</b> (${x.new_pct}% vs ${x.old_pct}%), so the current layout stays.`;
     return `<div class="ch"><div class="i ${k}">${k === 'k' ? '✓' : k === 's' ? '✕' : '='}</div><div>${txt}<div class="h">Round ${x.round} · Claude's reason: ${x.hypothesis}</div></div></div>`;
   }).join('');

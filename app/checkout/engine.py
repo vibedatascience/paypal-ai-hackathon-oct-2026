@@ -186,8 +186,10 @@ class Optimizer:
                 elif p_best[i] < 0.02 or v.stats.get(seg, [0, 0])[1] >= self.MAX_N:
                     v.status[seg] = "stopped"
                     if p_best[i] < 0.02:
-                        v.note[seg] = f"Stopped: under {max(p_best[i], 0.01):.0%} chance of being best"
-                        self._change("stopped", v, seg, old)
+                        worse = self.rate(c, seg) < self.rate(old, seg)
+                        v.note[seg] = ("Stopped: worse than the current layout" if worse
+                                       else "Beaten by a better idea in the same test")
+                        self._change("stopped" if worse else "lost", v, seg, old)
                     else:
                         v.note[seg] = f"No clear win after {self.MAX_N:,} shoppers"
                         self._change("no_win", v, seg, old)
